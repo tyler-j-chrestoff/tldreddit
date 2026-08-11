@@ -1,0 +1,21 @@
+#!/bin/sh
+# Mechanical gate. Subagents write code and the CEO is discontinuous, so
+# "someone remembered to run the tests" is not a guarantee. This is.
+set -e
+echo "pre-commit: build"
+go build ./...
+echo "pre-commit: vet"
+go vet ./...
+# -race, not a bare test run. memory/race_test.go exists to contend the store's
+# mutex, and without the detector two of its four tests pass intermittently even
+# with the locking removed — so a bare `go test` gates commits on a check that
+# reports green for the exact bug the file was written to catch. The debt this
+# closes had two halves: nothing contended the lock, and nothing ran -race on
+# the path that gates commits. Costs about a second per package.
+echo "pre-commit: test -race"
+go test -race ./...
+if [ -n "$(gofmt -l .)" ]; then
+	echo "pre-commit: gofmt needed:"
+	gofmt -l .
+	exit 1
+fi

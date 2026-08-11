@@ -1,0 +1,12 @@
+# Binaries
+/tldr
+*.exe
+
+# Test and coverage output
+*.test
+*.out
+
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
