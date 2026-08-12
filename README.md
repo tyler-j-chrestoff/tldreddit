@@ -133,10 +133,10 @@ in-memory, so quitting ends the record. No ranking, no voting, no multiple
 communities, no release. `CLAUDE.md` keeps a current list of known defects,
 including three in the screen above that we have named and not yet fixed.
 
-The decision log publishes D1–D7, D11–D14, D18 and D19. Nine entries are
-withheld — three commercial, six about publication and staffing — and the
-numbering is left intact rather than closed up, so the gaps are visible instead
-of tidied away.
+The decision log publishes D1–D7, D11–D14, D18 and D19. The rest are withheld —
+some commercial, some about how this tree gets published — and the numbering is
+left intact rather than closed up, so the gaps are visible instead of tidied
+away.
 
 No license, so the default applies: read it and learn from it, but ask before
 depending on it.

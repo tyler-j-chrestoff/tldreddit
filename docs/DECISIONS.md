@@ -260,9 +260,14 @@ people. A seat that goes unused for a whole milestone gets cut.
 Business decisions, withheld rather than renumbered so the log does not lie
 about its own shape.
 
-D15, D16, D17, D20, D21 and D22 are withheld too, but on different grounds:
-they concern how this tree is published and how the company is staffed, not
-commerce. D18 and D19 are published and follow D14 below.
+Later entries concerning how this tree is published and how the company is
+staffed are withheld on different grounds — not commerce.
+
+**This copy publishes D1–D7, D11–D14, D18 and D19.** Stated that way round on
+purpose: what is published is a fact about this file, checkable by reading the
+file, and it stays true until more is published. A count of what is *withheld*
+would be a fact about a repository you cannot see — it goes stale here whenever
+that log grows, and nothing in this tree can catch it when it does.
 
 ---
 
@@ -576,3 +581,14 @@ judgments. If either turns out to be wrong, the fix is another appended entry,
 never an edit to this one.
 
 ---
+
+## After D19
+
+The log continues past D19. Those entries are withheld, on the grounds given at
+the D8 position.
+
+This note exists because the two kinds of gap are not equally visible. A
+missing number in the middle of a numbered list announces itself — you can see
+that D8 is not there. A log that simply stops does not: without this paragraph,
+an append-only record ending at D19 reads as though D19 were the newest
+decision, and it is not.
