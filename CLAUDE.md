@@ -178,8 +178,9 @@ Go, `go 1.25.4`, Bubble Tea v2 / Lip Gloss v2 (`charm.land/*`). D6 landed conten
 addressing; the record/view split D1 called "the real prize" now exists.
 
 **Setup:** a pre-commit gate lives at `.githooks/pre-commit` (build, vet,
-`test -race`, gofmt), but `core.hooksPath` is local config and isn't tracked,
-so a fresh clone needs `git config core.hooksPath .githooks` once.
+`go mod tidy -diff`, `test -race`, gofmt), but `core.hooksPath` is local config
+and isn't tracked, so a fresh clone needs `git config core.hooksPath .githooks`
+once. GitHub Actions runs that same script, so the two cannot drift.
 
 - `memory/bit.go` — `Bit` is the atom: ID, timestamp, `Handle`, channel, payload,
   `Prev []string`. `Bit.ID` is a content hash, not an assigned name.
@@ -234,9 +235,13 @@ so a fresh clone needs `git config core.hooksPath .githooks` once.
   never-written `docs/MILESTONES.md`) is **closed by deletion**, not
   reconciliation — CEO decision, the file specced a product that does not
   exist. `cmd/tldr/main.go` remains and just launches `tui.New()`.
-- No CI and no lint config. `go vet` and `gofmt` do run, in the pre-commit gate —
-  but a gate on one machine is not CI, and `--no-verify` bypasses it silently.
-  Real CI is not set up.
+- **CI exists; there is still no lint config.**
+  `.github/workflows/commit-gate.yml` runs `.githooks/pre-commit` on GitHub's
+  machine, invoking the script directly rather than through git, so neither
+  escape hatch is available there. What that does not buy: it does not stop a
+  bad commit being made, `--no-verify` is still silent on the machine where it
+  happens, and an unpushed branch is still unchecked. What changes is that
+  `main` tells on you afterwards.
 - **Nothing but the human can put a bit in the record yet.** `say(handle, text)`
   takes any handle, but the only caller in the shipped binary is the composer,
   so a fresh `go run ./cmd/tldr` has exactly one speaker. Every multi-speaker

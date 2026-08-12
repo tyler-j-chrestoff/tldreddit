@@ -1,0 +1,54 @@
+# The commit gate, run somewhere nobody can configure it away.
+#
+# .githooks/pre-commit is the gate a person actually feels, but it fires only
+# after `git config core.hooksPath .githooks` — untracked local config, so a
+# fresh clone has no gate at all — and `git commit --no-verify` skips it
+# without saying so. This job runs that same script on a machine that has
+# neither option.
+#
+# What it does not do: stop a bad commit being made. It runs after the push, so
+# an unpushed branch is still unchecked and --no-verify is still silent on the
+# machine where it happens. What changes is that main tells on you afterwards.
+#
+name: commit gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Read the tree, touch nothing. An action that tried to write would fail here
+# rather than succeed quietly.
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      # Pinned by commit, not by tag: a tag can be moved onto new code and this
+      # job would run whatever it then resolves to. The trailing comment is the
+      # readable name of the pin, not the pin.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          # Read the version out of go.mod rather than naming it here, so CI
+          # cannot claim a Go version the module does not. go.mod carries no
+          # `toolchain` directive, so setup-go takes the `go` line verbatim —
+          # 1.25.4 today, and whatever go.mod says on the day it changes.
+          go-version-file: go.mod
+
+      # Runs the hook rather than restating its checks. A copy of them here
+      # would be a second statement of the same claim, and the copy goes stale
+      # the first time one side is edited — which is the defect this repo keeps
+      # paying for. The step name enumerates them anyway, so a reader can
+      # confirm from the run log that the detector was on; it is the one copy
+      # worth keeping, and it has to be corrected whenever the hook grows a
+      # check. Why -race has to be there is written once, in the hook. This
+      # arrangement stops working the day the hook starts reading the index
+      # (`git diff --cached`), and then CI needs steps of its own and the drift
+      # becomes something to manage.
+      - name: build, vet, mod tidy, test -race, gofmt
+        run: sh .githooks/pre-commit

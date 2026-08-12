@@ -6,6 +6,16 @@ echo "pre-commit: build"
 go build ./...
 echo "pre-commit: vet"
 go vet ./...
+# An untidy go.mod misstates the dependency graph — a direct import left marked
+# `// indirect` reads as something nobody chose — and nothing else in this gate
+# would notice. -diff exits non-zero and changes nothing, so this reports the
+# drift rather than silently rewriting a file in the middle of a commit.
+echo "pre-commit: mod tidy"
+if ! go mod tidy -diff >/dev/null 2>&1; then
+	echo "pre-commit: go.mod/go.sum are not tidy — run: go mod tidy"
+	go mod tidy -diff
+	exit 1
+fi
 # -race, not a bare test run. memory/race_test.go exists to contend the store's
 # mutex, and without the detector two of its four tests pass intermittently even
 # with the locking removed — so a bare `go test` gates commits on a check that
