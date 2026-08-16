@@ -1,7 +1,7 @@
 ---
 name: decision-guard
 description: Adversarially reviews finished work before it lands — for correctness bugs and, distinctly, for whether the implementation actually honors tldreddit's binding decisions (immutability of the record, legibility, composition-not-code, ranking-first). Use after any non-trivial change, and whenever you want a skeptical second read on whether something really does what it claims. Read-only: it reports findings and does not fix them.
-tools: Read, Bash, Grep, Glob
+tools: Read, Bash, Grep, Glob, WebSearch, WebFetch
 model: opus
 ---
 

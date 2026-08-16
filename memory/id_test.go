@@ -43,6 +43,13 @@ func TestIDDependsOnEveryField(t *testing.T) {
 		{"different display name", func() Bit { b := base(); b.From.Display = "tyler"; return b }()},
 		{"different channel", func() Bit { b := base(); b.Channel = "internal"; return b }()},
 		{"different text", func() Bit { b := base(); b.Payload = Utterance{Text: "it worked"}; return b }()},
+		// Same text as base, cut off. The whole guard on a fragment is that this
+		// row does not collide; fragment_test.go pushes on it directly.
+		{"truncated", func() Bit {
+			b := base()
+			b.Payload = Utterance{Text: "the deploy failed", Truncated: true}
+			return b
+		}()},
 		{"different payload kind", func() Bit { b := base(); b.Payload = Compaction{count: 1}; return b }()},
 		{"different parent", func() Bit { b := base(); b.Prev = []string{"a", "c"}; return b }()},
 		{"reordered parents", func() Bit { b := base(); b.Prev = []string{"b", "a"}; return b }()},

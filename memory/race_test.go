@@ -182,7 +182,7 @@ func TestConcurrentFoldsAgreeWithOneSequentialRun(t *testing.T) {
 		for i := range sends {
 			v, _ = v.Add(s, said(i, "tyler", "the deploy failed", v.Head()...))
 			if len(v) > coolAt {
-				v, _ = v.Fold(s, keepHot)
+				v, _ = v.Fold(s, keepHot, Stay{})
 			}
 		}
 		return v

@@ -18,6 +18,31 @@
 // Cooling is lossy on purpose and says so: a [Compaction] carries the count,
 // the span, and the IDs of everything it absorbed, so the cost of forgetting
 // stays visible and, because the store kept them, walkable.
+//
+// What decides is a vote, and a [Vote] is a bit like any other. It carries a
+// direction and follows the bit it votes on, so what someone thinks of a thing
+// is recorded the same way, in the same place and under the same rules as the
+// thing itself — including permanence, so changing your mind adds a vote rather
+// than editing one. [Tally] reads a view of them, and [View.Fold] holds an
+// upvoted bit out of the window it would otherwise have gone into. That is the
+// only lever in this package that is not the caller's arithmetic: one
+// participant's cheapest possible act, deciding what survives consolidation.
+//
+// The same act decides what comes first. [View.Rank] is a second reading of one
+// view — the same bits ordered by the votes rather than by the clock — and it is
+// a separate document rather than a rearrangement, because a transcript has one
+// legitimate order and it is time. Two tiers, never summed: the participant the
+// caller names decides, and everyone else can only arrange what that participant
+// left level.
+//
+// The record outlives the process. A [Store] writes itself to a stream and
+// [ReadStore] builds one back, and the bytes on the wire are the same bytes an
+// address is the hash of — so loading is arithmetic rather than trust: every
+// bit is re-addressed as it arrives and compared against the address it was
+// filed under. A [View] persists too, and separately, because what a view has
+// let go of is not a function of the record; it carries the address of the
+// record it was taken against so that a view from some other session cannot be
+// read over this one.
 package memory
 
 import "time"
@@ -35,6 +60,13 @@ type Bit struct {
 	// after the fact, which is why it is always worth capturing at ingest. On a
 	// derived bit there is no such moment, so [Cool] uses the end of the span
 	// it stands for — see there for why it must not read a clock.
+	//
+	// The instant is recorded; the zone is not. A bit read back from a stream
+	// reads UTC whatever zone it was captured in, because the encoding stores
+	// seconds and nanoseconds and identity is the moment rather than where
+	// somebody was standing (see canon.at). Anything drawing this to a person
+	// is drawing UTC after a restart and has to decide for itself whose local
+	// time to show.
 	At time.Time
 
 	// From is the handle that produced it, as observed. Read it together with
@@ -88,11 +120,29 @@ type Handle struct {
 // payload with no canonical encoding is a payload with no identity, and the
 // compiler should be the one that says so.
 type Payload interface {
-	// kind is the payload's stable name. It reaches content addresses, through
-	// the canonical encoding and through [Compaction].Kinds, so it is a
-	// hand-written literal rather than %T: a printed Go type name carries the
-	// package with it, and moving a type would re-address every object that
-	// mentioned it.
+	// kind is the payload's stable name, and it is a property of the value
+	// rather than of the Go type: a truncated [Utterance] names itself
+	// "fragment". It reaches content addresses, through the canonical encoding
+	// and through [Compaction].Kinds, so it is a hand-written literal rather
+	// than %T — a printed Go type name carries the package with it, so moving a
+	// type would re-address every object that mentioned it, and it cannot see a
+	// distinction that lives in a field at all.
+	//
+	// The constraint that makes value-dependence safe, and it is not optional:
+	// a field may reach the address through kind alone only if the value→name
+	// map is one-to-one over every value that field can take. Utterance
+	// qualifies by arithmetic — one bool, two names — and that is the whole of
+	// why its canonical needs no second write.
+	//
+	// Add a field that kind does not fully distinguish and two different
+	// payloads encode identically, [Store] keeps whichever landed first, and
+	// Get hands back the other one's content under the right address, silently.
+	// A second value-dependent field is the reachable way to do this: were
+	// Utterance to grow, say, a Redacted bool that also reported "fragment",
+	// {Truncated} and {Truncated, Redacted} would collide. So either give every
+	// combination its own name, or write the field in canonical as well and
+	// accept that doing so re-addresses every payload of that type ever
+	// written.
 	kind() string
 
 	// canonical appends this payload's unambiguous byte encoding.
@@ -101,7 +151,48 @@ type Payload interface {
 
 // Utterance is something said: the hot, uncompacted form of a bit's content.
 type Utterance struct {
+	// Text is what was said, as said.
 	Text string
+
+	// Truncated marks an utterance whose speaker did not get to finish — a
+	// model that ran out of context room mid-sentence, not one that stopped
+	// because it was done.
+	//
+	// It is not a rendering hint. A reply cut off by a context window is a
+	// well-formed sentence that simply ends, and nothing about the text says
+	// which kind of ending it was. Recorded unmarked in a store with no delete
+	// and no edit, it is a permanent claim that a participant said something
+	// they never said, and it is a claim that keeps propagating: every fold
+	// that absorbs it inherits the error and no later generation can find its
+	// way back past one.
+	//
+	// So it reaches the content address, through [Utterance.kind]. The same
+	// text complete and cut off are two bits, not one.
+	Truncated bool
 }
 
-func (Utterance) kind() string { return "utterance" }
+// kind names a truncated utterance "fragment", so the distinction outlives the
+// bit itself in the two places that matter. It is the tag the canonical
+// encoding writes, which is what makes a fragment address apart from the
+// complete utterance with the same text. And it is the key [Compaction] tallies
+// in Kinds, which is how a fold reports on its own — holding nothing but the
+// tally — that a fragment was in the window it absorbed. A bool could not have
+// done that second job: it lives on the payload, and the tally is what a
+// Compaction carries in the payload's place.
+//
+// Nothing is destroyed by the fold, and this comment must not be read as
+// saying so. The absorbed bits stay in the [Store] with Truncated intact, and
+// [Compaction].Absorbed names every one of them, so a reader with the store can
+// walk back and read the fragment itself. Kinds is the answer to the narrower
+// question — what does the cold bit alone say — which is the question a screen
+// drawing a scar is asking.
+//
+// Collapsing this back to a constant loses both at once, and loses them
+// quietly: every fragment takes the address of its complete twin, and [Store]
+// keeps whichever content landed there first.
+func (u Utterance) kind() string {
+	if u.Truncated {
+		return "fragment"
+	}
+	return "utterance"
+}

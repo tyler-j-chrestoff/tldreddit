@@ -1,6 +1,29 @@
-# Binaries
+# Binaries. `go build ./cmd/tldr` writes one into the working directory; the
+# gate's `go build ./...` does not, because Go discards results when it is
+# building more than one package. The comment here used to claim otherwise —
+# check with `go build ./... && ls tldr seam`, which produces nothing.
 /tldr
+/seam
 *.exe
+
+# Secrets, none of which belong in this tree under any name.
+#
+# One reason this section is not just hygiene: `cmd/seam` copies the whole
+# working tree — ignored files included, deliberately, since they can change
+# what runs — into a throwaway directory once per claim, so a secret in here
+# is copied dozens of times per run and its bytes reach the tree address.
+#
+# The rule this encodes: credentials live in the environment, outside the
+# repository. This list is a backstop for the day somebody forgets, not a
+# place to put things.
+.env
+.env.*
+*.pem
+*.key
+!*_test.key
+secrets.json
+.claude/settings.local.json
+.claude/*.local.json
 
 # Test and coverage output
 *.test

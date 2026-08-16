@@ -2,13 +2,8 @@ package memory
 
 import (
 	"crypto/sha256"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"hash"
-	"maps"
-	"slices"
-	"time"
 )
 
 // ID is the content address of a bit: the SHA-256 of everything the bit says,
@@ -21,10 +16,17 @@ import (
 // Go's version, on struct field names, or on map iteration order, and any of
 // those drifting would silently split one object into two.
 //
+// The encoding is in wire.go, and this function is the only difference between
+// addressing a bit and sending one: [writeBit] into a hash is an address,
+// [writeBit] into a file is persistence. One encoding, so a change that would
+// break a stored record breaks the golden addresses on the same run.
+//
 // The algorithm is part of the format and is not announced in the ID. A
 // multihash-style prefix would buy the ability to migrate, and there is nothing
 // yet to migrate to; when there is, it is a new field on a new kind of store,
-// not a prefix nobody has ever read.
+// not a prefix nobody has ever read. A stream is the other case and does
+// announce itself, for reasons that do not apply here — see wire.go's header
+// constants.
 //
 // ID panics on a bit with no payload. A bit that carries nothing has no
 // content, so it has no content address; minting one anyway would hand every
@@ -42,26 +44,24 @@ func ID(b Bit) string {
 	// object whose entire claim is that it does not change, and every type
 	// switch in this program would miss it and fall through to its default.
 	switch b.Payload.(type) {
-	case Utterance, Compaction:
+	case Utterance, Compaction, Vote:
 	default:
-		panic(fmt.Sprintf("memory: ID of payload %T; the set is Utterance and Compaction, by value",
+		panic(fmt.Sprintf("memory: ID of payload %T; the set is Utterance, Compaction and Vote, by value",
 			b.Payload))
 	}
 
-	var c canon
-	c.h = sha256.New()
+	h := sha256.New()
+	c := canon{w: h}
+	writeBit(&c, b)
 
-	c.tag("bit")
-	c.at(b.At)
-	c.tag("from")
-	c.str(b.From.Ref)
-	c.str(b.From.Display)
-	c.str(b.Channel)
-	b.Payload.canonical(&c)
-	c.tag("prev")
-	c.strs(b.Prev)
-
-	return hex.EncodeToString(c.h.Sum(nil))
+	// Unreachable through this function: hash.Hash documents that Write never
+	// returns an error. It is checked because [canon] no longer writes only
+	// into a hash, and an address taken over a partial write would be a name
+	// for something that was never fully said.
+	if c.err != nil {
+		panic(fmt.Sprintf("memory: hashing a bit: %v", c.err))
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // Short abbreviates an ID for display, git-style. The full ID is the identity;
@@ -73,97 +73,4 @@ func Short(id string) string {
 		return id
 	}
 	return id[:n]
-}
-
-// canon writes a canonical byte encoding into a hash.
-//
-// Two rules make it unambiguous, and both matter. Every variable-length piece
-// is written with its length first, so no arrangement of field values can be
-// mistaken for a different arrangement — without that, {Ref: "ab", Display:
-// "c"} and {Ref: "a", Display: "bc"} would hash alike. And every composite is
-// preceded by a literal tag naming what follows, so a payload can never be
-// confused with a different payload that happens to encode to the same bytes.
-//
-// Tags come from Payload.kind, which is a hand-written literal rather than
-// %T, because a type's printed name carries the package name with it: renaming
-// this package would otherwise re-address every object in every store.
-//
-// Nothing here checks the error from Write. hash.Hash documents that it never
-// returns one, and threading an error nobody can produce through every method
-// would cost more legibility than it buys.
-type canon struct{ h hash.Hash }
-
-// tag marks what comes next. It is length-prefixed like any other string, so a
-// tag can never be forged by a value that happens to spell it.
-func (c *canon) tag(name string) { c.str(name) }
-
-func (c *canon) str(s string) {
-	c.num(int64(len(s)))
-	c.h.Write([]byte(s))
-}
-
-// num writes a fixed eight bytes, big-endian. Fixed width over varint because
-// there is nothing to save here and one less encoding rule to get wrong.
-func (c *canon) num(n int64) {
-	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], uint64(n))
-	c.h.Write(buf[:])
-}
-
-// at encodes an instant as seconds and nanoseconds since the epoch in UTC.
-//
-// Normalizing to UTC is a deliberate claim: identity is the instant, not the
-// zone it was displayed in, so the same moment recorded in Tokyo and in London
-// is one bit. It also drops the monotonic clock reading that time.Now attaches,
-// which is process-local and would otherwise make every ID unrepeatable.
-func (c *canon) at(t time.Time) {
-	u := t.UTC()
-	c.num(u.Unix())
-	c.num(int64(u.Nanosecond()))
-}
-
-// strs writes a sequence, count first. Order is preserved rather than sorted:
-// the caller's order is part of the value.
-func (c *canon) strs(ss []string) {
-	c.num(int64(len(ss)))
-	for _, s := range ss {
-		c.str(s)
-	}
-}
-
-// counts writes a map of counts in sorted key order, because Go randomizes map
-// iteration and an unordered walk would give the same map a different address
-// on every run.
-func (c *canon) counts(m map[string]int) {
-	c.num(int64(len(m)))
-	for _, k := range slices.Sorted(maps.Keys(m)) {
-		c.str(k)
-		c.num(int64(m[k]))
-	}
-}
-
-func (u Utterance) canonical(c *canon) {
-	c.tag(u.kind())
-	c.str(u.Text)
-}
-
-func (p Compaction) canonical(c *canon) {
-	c.tag(p.kind())
-	c.num(int64(p.count))
-	c.at(p.from)
-	c.at(p.to)
-
-	c.tag("handles")
-	c.num(int64(len(p.handles)))
-	for _, h := range p.handles {
-		c.str(h.Ref)
-		c.str(h.Display)
-	}
-
-	c.tag("kinds")
-	c.counts(p.kinds)
-	c.tag("bag")
-	c.counts(p.bag)
-	c.tag("absorbed")
-	c.strs(p.absorbed)
 }

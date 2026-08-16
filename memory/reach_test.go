@@ -5,14 +5,20 @@ import (
 	"testing"
 )
 
-// reachable walks the record from a view the way a reader would: follow every
-// Prev, and follow every Absorbed on a receipt. It returns the IDs found.
+// reachable walks the record from the views a reader holds, the way a reader
+// would: follow every Prev, and follow every Absorbed on a receipt. It returns
+// the IDs found.
 //
 // This is the operational meaning of "permanently reachable" in D1. Content
 // addressing makes an ID *retrievable* by anyone already holding the hash;
 // only the edges make it *discoverable*. A bit nothing points at is a bit no
 // reader can get to, whatever the store still has filed under its address.
-func reachable(t *testing.T, s *Store, v View) map[string]bool {
+//
+// Views, plural, since votes arrived. A vote lives in its own view and nothing
+// in the transcript points at one, so a reader holding both is the honest
+// starting set — and passing only the transcript is the mutation that shows this
+// can still fail.
+func reachable(t *testing.T, s *Store, views ...View) map[string]bool {
 	t.Helper()
 
 	seen := map[string]bool{}
@@ -40,8 +46,10 @@ func reachable(t *testing.T, s *Store, v View) map[string]bool {
 		}
 	}
 
-	for _, id := range v {
-		walk(id)
+	for _, v := range views {
+		for _, id := range v {
+			walk(id)
+		}
 	}
 	return seen
 }
@@ -72,7 +80,7 @@ func TestEveryStoredBitIsReachableFromTheView(t *testing.T) {
 			}
 		}
 		if originals > coolAt {
-			v, _ = v.Fold(s, keepHot)
+			v, _ = v.Fold(s, keepHot, Stay{})
 		}
 	}
 

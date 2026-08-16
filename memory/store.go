@@ -2,6 +2,8 @@ package memory
 
 import (
 	"fmt"
+	"iter"
+	"maps"
 	"slices"
 	"sync"
 )
@@ -31,8 +33,13 @@ import (
 // of Get. All three, because a bit going in and the same bit coming straight
 // back out is one round trip with two chances to hand out the store's array.
 //
-// Persistence is not here yet. When it arrives it goes behind this type, which
-// is why the type exists at all rather than callers passing a map around.
+// Persistence is here, and it is behind this type, which is why the type
+// exists at all rather than callers passing a map around: [Store.WriteTo] and
+// [ReadStore]. A record read back is not trusted — every bit is re-addressed as
+// it lands — so nothing above changes when a store came off a disk rather than
+// out of this process. What is not here is a storage *engine*: this writes a
+// stream and reads one, and where that stream lives, how it is rotated and
+// whether a write is atomic are all the caller's.
 type Store struct {
 	// mu guards bits. A Store is the one thing several goroutines will
 	// plausibly share — Bubble Tea runs commands off the update loop — and
@@ -125,4 +132,44 @@ func (s *Store) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.bits)
+}
+
+// All hands out every bit in the record, in address order.
+//
+// A record that can only be read through the [View] that was written beside it is
+// a record only its own author can audit, and the audit is the point: what is in
+// here that no view names is exactly what a reader most needs to be able to find.
+// [View.Bits] answers "what am I being shown"; this answers "what is there".
+//
+// Address order, which is the same order [Store.WriteTo] uses and for the same
+// reason — a map's iteration order is not stable, so two processes holding one
+// record must be given some order they agree on. It is emphatically **not a
+// reading order**: an address is a hash, so this arrives shuffled with respect to
+// time, to speaker and to anything a person cares about. A caller building a
+// reading has to sort it by something it can name and defend, and saying which
+// order it chose is part of what it owes its reader.
+//
+// The record is snapshotted under the lock and yielded outside it, so a caller may
+// [Store.Put] while iterating — what it gets is the record as of the call, and the
+// new bit is not in it. Holding the lock across the yield would deadlock on
+// exactly that, and a sequence that cannot be walked while the surface is writing
+// is one no [View.Fold] could ever be built on. Prev is copied per bit for
+// [Store.Get]'s reason: what comes out of a Store must not reach what is in it.
+func (s *Store) All() iter.Seq[Bit] {
+	s.mu.RLock()
+	ids := slices.Sorted(maps.Keys(s.bits))
+	bits := make([]Bit, 0, len(ids))
+	for _, id := range ids {
+		bits = append(bits, s.bits[id])
+	}
+	s.mu.RUnlock()
+
+	return func(yield func(Bit) bool) {
+		for _, b := range bits {
+			b.Prev = slices.Clone(b.Prev)
+			if !yield(b) {
+				return
+			}
+		}
+	}
 }

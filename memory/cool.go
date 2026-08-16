@@ -56,11 +56,18 @@ type Compaction struct {
 	// fold itself and was never in the conversation.
 	handles []Handle
 
-	// kinds counts *original* payloads by kind, so it sums to count.
-	// "compaction" is never a key: a cold bit contributes the tally it already
-	// holds instead of itself. The names are this package's own and outlive any
-	// Go type name they happen to resemble, because they reach content
-	// addresses and so cannot move when a type does.
+	// kinds counts *original* payloads by kind, so it sums to count. In a
+	// transcript the keys are "utterance" and "fragment" — an [Utterance] names
+	// itself the second when its speaker was cut off — and this is what lets a
+	// cold bit say, holding nothing but its own tally, that a fragment was in
+	// the window it absorbed. The fragments themselves are not gone: absorbed
+	// names them,
+	// they are still in the store, and a reader with both can read what the
+	// speaker got as far as saying. This is the summary, not a replacement for
+	// them. "compaction" is never a key: a cold bit contributes the tally it
+	// already holds instead of itself. The names are this package's own and
+	// outlive any Go type name they happen to resemble, because they reach
+	// content addresses and so cannot move when a type does.
 	kinds map[string]int
 
 	// bag counts words across every utterance absorbed, at any depth. It is a
@@ -118,6 +125,17 @@ func (p Compaction) Absorbed() iter.Seq[string] { return slices.Values(p.absorbe
 // folding the same window twice must produce the same object, or the store
 // fills with near-duplicate summaries that differ only in when someone got
 // around to making them.
+//
+// Cool is for a window of things said, and it will fold a window of votes
+// without complaining. Do not — a vote view is not folded, ever. Nothing is
+// destroyed by it, as ever: the cold bit's Prev names every vote it absorbed, so
+// an auditor with the store still walks to each one and reads what it voted on.
+// What goes is the view. Kinds would say three upvotes and one downvote and
+// could not say what any of them were about, because a vote's whole content is
+// its target and a target is an edge rather than a payload — and, worse, those
+// votes have left the vote view, so [Tally] over that view now reports nothing
+// and every stay it was holding lifts at once. Tally panics rather than let that
+// pass quietly, but the fold that caused it happened here.
 //
 // Cool panics if bits is empty, if any bit is unaddressed, or if the window
 // spans more than one channel. Channels have no ordering, so there is no honest
