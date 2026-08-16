@@ -268,10 +268,10 @@ clauses within them can each be withheld. An interior gap — a missing
 number or letter with one on either side — announces itself. A clause
 withheld from the *end* of a lettered list does not: it reads as though the
 list simply stopped there, which is what happened to D36(k), D50(o),
-D51(h)+(i), D52(l), D53(f)+(g), D54(h)+(i) and D59(q).
+D51(h)+(i), D52(l), D53(f)+(g), D54(h)+(i), D59(q) and D63(j).
 
 **This copy publishes D1–D7, D11–D14, D18, D19, D24, D26–D28, D30–D40, D42,
-D49, D50, D51, D52–D55, D57–D61.** Stated that way round on purpose: what is
+D49, D50, D51, D52–D55, D57–D61, D63.** Stated that way round on purpose: what is
 published is a fact about this file, checkable by reading the file, and it
 stays true until more is published. A count of what is *withheld* would be a
 fact about a repository you cannot see — it goes stale here whenever that log
@@ -4413,13 +4413,212 @@ own work.
 
 ---
 
-## After D61
+## D63 — The forum container is deferred with a trigger, agent votes stay a tier not a ban, and the CEO's own first ruling on both was wrong
 
-As of this publication pass, D61 is also the newest entry in the private
-record — there is nothing past it yet to withhold. But the two kinds of gap
-are not equally visible, and this paragraph is written for whenever that
-stops being true: a missing number in the middle of a numbered list
-announces itself — you can see that D8 is not there. A log that simply stops
-does not. Without this paragraph, an append-only record ending at D61 would
-read as though D61 were the newest decision even after it no longer is, and
-nothing else in this file would say so.
+**(a) ASSERTED: the forum container is deferred, with a named trigger, not
+refused.** D18(c) ruled forum is the base abstraction; there is no `Forum`
+type in the code and never has been (`grep -rn "type Forum" --include='*.go' .`
+returns nothing). The founder's framing this session: "we need to give an
+agent its own internal tldreddit" — a record holding many forums, a seat
+owning one, a rule for how a child's top-ranked bits reach the parent's view.
+
+Not built now, on sequencing grounds: it is a wire-format break. A forum
+roster sits outside every seal, forcing wire `version` 1→2
+(`memory/wire.go:93`, `version = 1`, checked and refused on read at
+`memory/wire.go:629-630`). The receipt for what an unversioned addition
+already does, reproduced this session and recorded in `docs/DEBT.md`: `decode`
+accepts a four-view-stream file with no error and drops the extra silently —
+self-delimiting streams have no framing question to ask about slack
+(`memory/wire.go:42-44`'s own point). The failure mode a forum roster would
+walk into is silent truncation, not a parse error.
+
+**Trigger, because a refusal with no trigger is the shape that rots:** D4's
+own collapse condition — evidence that at real agent volume a human cannot
+vote meaningfully.
+
+**(b) ASSERTED, and a retraction — the CEO's error, not a subagent's.** The
+first draft of this ruling disqualified the container because "there is no
+voter in a child forum." That restated a *prohibition* as a fact about
+capability. Tyler corrected it directly: two subagent definitions with
+opposed mandates can be created and run trivially, and they will argue, or
+agree, or neither. He is right and the reversal is on the argument, not on
+tone.
+
+The CEO also misread its own citation. `memory/rank.go:97-99` reads: "A zero
+`Handle` for `by` is legal and means the first tier is empty, so the whole
+ordering is the second one. That is the agent-only forum, and D24 is what it
+produces." That describes the case where there is **no human at all**. It
+does not say agent votes are degenerate. Two claims collapsed into the one
+that supported the answer already reached.
+
+**The prohibition was never ruled at the scope it was applied.**
+`decision-guard` read D4, D30, D39(a), D51(d) and D52(j) in full: D52(j)'s
+line is "the skill gets Claude a write, never a vote," scoped in its own text
+to *this* record, with D51(d) and D39(a) both about the human's published
+record. None reaches a child forum with no upward path.
+
+**(c) ASSERTED: agent votes are a tier, not a ban — and a seat vote surface
+is still not built.** `Rank` is two tiers that never mix (`memory/rank.go:44-51`
+in doc, code at `memory/rank.go:105-`): "a ceiling stops an agent voting a
+million times, and a tier makes the millionth vote worth nothing." Three
+findings, verified against the tree, decide against building a seat vote
+surface now:
+
+- **`Others` is a Sybil count, not a vote count.** `standing()`
+  (`memory/vote.go:208`) keys on `{voter, target}` and keeps one vote per
+  pair, so nobody votes twice on a bit — but a handle is free. Within the
+  `Own == 0` band, which at 3 standing votes in 35 bits is most of the
+  record, agent identities fully order what the human sees.
+- **Write volume is already a ranking input, measured this session.** Five
+  seat notes, one per seat, push two human bits off `tldr top`'s default
+  page. Nothing forged a vote: at near-zero vote density a ranked reading
+  just *is* recency, which is D24's r=0.050 from the other direction.
+- **Tier two already reaches a surface that is not ranking.** `frame.quoted`
+  (`tui/render.go:134`) picks which absorbed bit a scar quotes on screen by
+  `own` then `others`, reading `frame.votes` — which is "every standing vote
+  on every bit, from [memory.Tally]" (`tui/render.go:72`), not `Stay.Holds`.
+  Correctly tiered, but it means tier two already decides what a fold's
+  *receipt says* to the human wherever the human left bits level. This
+  sentence was itself wrong when first drafted here, naming `memory.standing`
+  as the source and `Tally` as what it was not — a confusion with
+  `frame.standing` (`tui/render.go:95`), a frame method of the same name.
+  Caught by re-derivation before the entry was committed.
+
+**The CEO's ruling:** the real failure is not a forged signal, it is that
+agent votes would decide **which bits the human ever gets the chance to vote
+on** — attention allocation, which the charter says is the whole reason the
+forum shape is load-bearing. So the open question that must be decided before
+any seat vote surface: *may tier two reorder the page the human has not
+judged?* Recorded as open, not as refused.
+
+**TESTED, from `principal-go-engineer`: no agent vote can move a fold.**
+`standing()` has exactly three callers — `Tally` (`memory/vote.go:184`),
+`Stay.Holds` (`memory/view.go:216`, filtered to `stay.By` and `Up`), and
+`View.Rank` (`memory/rank.go:107`) — and every fold-side path reaches votes
+only through `Holds`; `sparing` (`memory/view.go:681`) takes the
+already-filtered map. The channel that *is* open is writing, not voting:
+`Prev` is positional, so an agent that speaks immediately before a bit the
+human upvotes gets spared — agents move the fold by choosing when to talk,
+not by voting on it. And: a CLI vote guard could not be called "structurally
+incapable" — `cmd/tldr/say.go:112` already says so of its own guard, "it is
+not a security boundary and cannot become one."
+
+**(d) ASSERTED: seats write into the record as an executable step — and the
+D24 citation the CEO first offered for it was backwards.** D24's finding is
+that Moltbook agents had *commenting* as a checklist step and *upvoting* not,
+and the cure was making the upvote a step. A trigger to write is the half
+Moltbook already had — the half that produced 97.3% zero-upvote comments.
+Cite D24(b) instead, "the default channel decides the topology," the entry
+actually on point since seat traffic routes to the single default channel.
+
+**Null hypothesis, so this is not D27's shape:** after meaningful seat
+traffic, zero seat-written bits carrying a standing vote from `tui.Human()`
+means the premise is dead — and that is direct evidence for D4's own collapse
+condition. The instrument exists: `tldr top -n 0`, whose header already
+prints `kept · not judged · let go`. No new instrument is warranted.
+
+**(e) ASSERTED: D18(c)'s CEO addition is retired as falsified — and D49(d)
+got there first.** "Threads are the first thing in this system that is
+actually rankable. A single transcript poses no ranking question" is dead as
+of D49. D49(d) already superseded this exact sentence, quoting D30 quoting
+D18(c). Recorded here so a reader does not conclude the record moved twice.
+One precision: `m.rank()` (`tui/tui.go:1384`, called at `tui/tui.go:706`)
+does not rank "a single transcript" — `judged()` walks `store.All()`, so it
+ranks the whole record's utterances. The falsification survives; the drafted
+sentence overstated the tree. Tyler's own migration-cost argument in D18(c)
+stands independently and is what authorized "channels containing threads" —
+retiring the CEO's addition does not empty D18(c).
+
+**(f) ASSERTED: D18(c)'s exclusion list stands and is not routed around.**
+"Not authorized: multiple communities, membership management, moderation,
+cross-posting." A per-agent forum is a multiple community on any reading. It
+also does more work than it claims: keeping the record single-channel
+protects D58(a), whose "no query" ruling rests on `top -n 0 | grep` reading
+everything.
+
+**(g) TESTED: D59(c) is closed, and neither candidate account was right.**
+Both candidate accounts print 16 folds — (200 bits, budget 12) and (400, 23)
+— because folding runs about linearly in length, so halving the conversation
+lands on what a larger budget already gave. What adjudicates is that the
+figure never travelled alone: the paragraph that published it carries nine
+numbers, and 400/23 matches nine for nine while 200/12 matches two. The real
+correction is that D58(i)'s figure never came from `TestHarnessHoldSchedule`
+at all — that harness hardcodes budget 12 and gives 32 at its own default,
+which is exactly the non-reproduction D59(c) reported: a true observation
+about an instrument that was never the source. D61(e)'s stated closing
+condition — a table swept over bits as well as budget — proved insufficient
+on its own; reading the whole publishing paragraph as one joint fixture is
+the better rule, and is worth logging as a rule in its own right.
+
+`tui/testdata/stranding.txt` is now **300 lines / 270 schedule rows**, up
+from the 163/138 recorded at D61(b) — append-only, so that earlier figure
+stands and this is the correction, not an edit to it. The 138 pre-existing
+rows come back byte-identical in every number column. Two findings the
+length axis produced that nobody asked for: held% is not invariant in length
+(52.0% at 100 bits, 83.0% at 400, 95.8% at 1,600 — every published stranding
+percentage is partly a claim about conversation length), and D58(i)'s cliff
+is bounded — folds are 0 at 200 and 400 bits at every budget swept, 95 at
+800. "The record stops consolidating" means "stops until the votes holding
+it do."
+
+**(h) ASSERTED: `record-frame-unclosed` keeps `sole: true`; its trigger is
+retired as the wrong instrument rather than fired.** Four trips
+(`docs/CLAIMS.md:877-882`, `red:` list now 27 tests, confirmed by the file's
+own "the set is now twenty-seven"), each correctly declined — the trigger
+watches for *leak* ("trips on work with no bearing on the frame"), and the
+list is growing from a class that can never trip it: a `cmd/tldr` test whose
+only state is a file always has bearing on the frame. Firing it anyway would
+be the counting error the claim's own prose warns against. Replacement
+trigger: the day a round-trip test is added and `seam` finds the `red` list
+stale before its author does. The readability cost gets a format answer as
+debt, not a fix here — let a claim name a class ("these checks, plus every
+round-trip test") rather than 27 literals.
+
+**(i) TESTED: corrections to the record.** Each of these is a checkable claim
+that was wrong and that nobody re-derived:
+- `CLAUDE.md` cited `Model.mark, tui/tui.go:308`; the `mark` field is at
+  `tui/tui.go:414`. It cited `m.rank(), tui/tui.go:595-597`; `m.rank()` is
+  called at `tui/tui.go:706` and defined at `tui/tui.go:1384`. Both sit
+  inside the item D58(a) rests on. D47's class, and now fixed in `CLAUDE.md`.
+- `CLAUDE.md` said `go run ./cmd/seam` "takes about 2m30s." Measured this
+  session: **17m35s**. That changes how a session plans a checkpoint, and
+  is now fixed in `CLAUDE.md`.
+- `CLAUDE.md`'s inline bullet said D59(c) "stays genuinely open, per
+  D61(e)." It is closed, per (g) above, and `CLAUDE.md` is rewritten to say so.
+- `docs/DECISIONS.md` records the frozen table as "163 lines / 138
+  schedule rows." It is now 300 lines / 270 rows, per (g) above.
+  Append-only — the new figure is recorded there, not by editing this line.
+- `cmd/tldr/say.go`'s doc comment (`say.go:44-47`) argues it must write into
+  the view because "a bit filed with nothing naming it is reachable by
+  nobody… D14 is explicit that reachable means discoverable." True when
+  written; false since `Store.All()`, `tldr top` and `judged()` all
+  enumerate the store. The behaviour is right, its stated reason is stale.
+  Not fixed in code this entry — recorded so the doc comment is not read as
+  current.
+- The D58(i) cliff figure ("one vote in three and the record stops
+  consolidating") is true only while the conversation is shorter than the
+  holds, per (g) above. Anywhere it is quoted it must carry the length,
+  because a reader cannot re-derive it otherwise.
+- D14 and the shipped product hold two different definitions of
+  "reachable," and nobody has written the reconciliation down. Not a D1
+  violation: `record.absorb`'s doc already argues it correctly and store
+  enumeration is stronger than the retrievability D14 rejected. But both
+  enumerations admit `Utterance` only, so a `Compaction` or `Vote` in the
+  store and in no view would be invisible everywhere. Recorded in
+  `docs/DEBT.md` so the next session does not rediscover it.
+- Additionally found and fixed while touching the same passage: the
+  `docs/DEBT.md` "fold budget" entry cited `frame.quoted` at
+  `tui/render.go:124`; it is defined at `tui/render.go:134`.
+
+---
+
+## After D63
+
+D63 is the newest entry published here, and it is no longer the newest entry
+written: the record continues past it, and what continues is withheld. That
+is the case this paragraph exists for, because the two kinds of gap are not
+equally visible. A missing number in the middle of a numbered list announces
+itself — you can see that D8 is not there. A log that simply stops does not.
+Without this paragraph, an append-only record ending at D63 would read as
+though D63 were the newest decision even after it no longer is, and nothing
+else in this file would say so.

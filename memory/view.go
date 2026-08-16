@@ -644,12 +644,29 @@ func (v View) runs(s *Store, keep int, stay Stay) iter.Seq2[[]Bit, bool] {
 // bits go 28 → 25 at one vote in ten and 23 → 30 at one in three, mean rows
 // 22.7 → 25.1 and 33.9 → 38.5, worst view 30 → 34 and 43 → 47 — because a
 // two-minute hold decays inside the record and the pairs it kept cool together
-// when it lapses. Hold the same conversation with a thirty-minute hold, which at
-// this cadence never expires, and the cost is a cliff rather than a slope: one
-// vote in three folded 16 times and now folds not once, because every free
-// stretch between two covers is a single bit and D32's size rule refuses all of
-// them. The rate at which this record stops consolidating was one vote in two
-// and is now one in three.
+// when it lapses. Hold the same conversation with a thirty-minute hold and the
+// cost is a cliff rather than a slope: one vote in three folded 16 times and now
+// folds not once, because every free stretch between two covers is a single bit
+// and D32's size rule refuses all of them. The rate at which this record stops
+// consolidating was one vote in two and is now one in three.
+//
+// **That 16 is at 400 bits and a 23-row budget — the schedule two paragraphs up
+// — and it needs both, because folding runs about linearly with length, so the
+// same rule folds 16 times at 200 bits and a 12-row budget as well.** One number
+// reachable two ways spent two sessions being attributed to either, until the
+// sweep swept the length (tui/testdata/stranding.txt, and D59(c)). The lesson is
+// narrower than "state the schedule": a fold count needs *every* parameter its
+// value is sensitive to, and the ones that scale it are the ones nobody thinks
+// to write down.
+//
+// **A thirty-minute hold does not "never expire" — it outlives a conversation of
+// about 515 bits at this cadence, which is 1,800 seconds of conversation at 3.5
+// seconds a bit, and that is a fact about the conversation.** Past it the oldest
+// votes start lapsing and folding resumes: at one vote in three, 0 folds at 200
+// and 400 bits at every budget swept, and 95 at 800. What the flat part costs
+// meanwhile is the view itself, which reaches 517 rows before the first hold
+// goes. So the record does not stop consolidating; it stops until the votes
+// holding it do, and a figure quoted from the flat part reads as permanence.
 //
 // **The six "after" figures in that paragraph were 37, 122, 24.5, 34.4, 30 and
 // 37 when it was written, and nothing anywhere noticed them go stale.** Each was

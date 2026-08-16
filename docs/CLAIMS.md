@@ -492,8 +492,8 @@ loudly as on one inside it that stayed green.*
 
 *The set gained an eleventh name when the stranding sweep landed
 (`tui/testdata/stranding.txt`). It is not a witness in the sense the ten above
-are: it reddens because a size rule that cools a run of one changes what a
-hundred and thirty-eight simulated conversations fold, which is true of every
+are: it reddens because a size rule that cools a run of one changes what two
+hundred and seventy simulated conversations fold, which is true of every
 mutation in this file that touches the fold. It is cited because `sole` is a set
 assertion and an uncited red is a gate failure, not because it says anything
 about lone runs.*
@@ -590,10 +590,12 @@ removing it changes nothing at all across 42 simulated conversations of 400 bits
 each, and turns the hand-built view from a fold into a refusal.
 
 *Re-derived on wider evidence rather than re-asserted: this mutation also leaves
-`tui/testdata/stranding.txt` byte-identical across the 138 schedules that table
-sweeps, which reach budgets, keeps, hold regimes and vote positions the original
-42 did not. The prior is now held up by a check that runs in the commit gate and
-would print a diff the day it stops holding.*
+`tui/testdata/stranding.txt` byte-identical across the 270 schedules that table
+sweeps, which reach budgets, keeps, hold regimes, vote positions and now
+conversation lengths the original 42 did not — including the six at 800 bits,
+where the holds do lapse and the folding this guard is about actually resumes.
+The prior is now held up by a check that runs in the commit gate and would print
+a diff the day it stops holding.*
 
 ```seam
 id: a-cover-reaches-back-from-a-scar
@@ -861,12 +863,22 @@ reasoned — `go build ./... && go test ./... -count=1 | grep '^--- FAIL'` in a
 copy with this block's own `after` applied — which is the only way any of these
 lists has ever been right.*
 
+*Trip four, one name, from the load that puts a stray utterance back in the
+transcript: `TestSayingBesideAnOpenSessionReachesTheNextOneJustTheSame` runs the
+`say` verb and then opens the file twice, so the frame is what it reads the
+record through. Same reason as trips one to three and it does not count toward
+the three. The set is now twenty-seven. Its sibling
+`TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse` is **not** here, and
+that is the general escape rather than luck: it builds its records in memory and
+never touches a file, which is what keeps a unit test of a rule off the wire
+format's claims. Measured the same way.*
+
 ```seam
 id: record-frame-unclosed
 file: memory/wire.go
 find: \tsc.want(endMark)\n\tif sc.err != nil {
 after: \tif sc.err != nil {
-red: TestACountReadOneTooLowIsRefused, TestASingleFlippedBitIsAlwaysCaught, TestNoByteOfARealRecordCanBeFlippedUnnoticed, TestATruncatedStreamIsRefused, TestARecordAndItsViewsShareOneStream, TestASavedRecordComesBackWhole, TestAViewFromAnotherRecordIsFatal, TestAViewNamingAMissingBitIsFatal, TestAVoteViewOfSomethingElseIsFatal, TestEveryTruncationIsFatalAndNamesTheFile, TestNoSingleBitOfTheFileCanBeChangedQuietly, TestTheRecordSurvivesASaveThatFailed, TestAChangeThatCouldNotBeWrittenIsCarriedByTheNextOne, TestTheFileMatchesMemoryAfterEveryChange, TestABitSaidFromTheCommandLineFoldsLikeAnyOther, TestAReadingOfAnEmptyRecordSaysSo, TestNoCommandOnThisSurfaceCanCastAVote, TestSayPutsAnOrdinaryBitOnTheRecord, TestTheHeaderSaysHowMuchOfTheOrderAPersonDecided, TestTheMarkOnARowIsTheVoteThePersonCast, TestTheReadingKeepsTheShapeOfWhatWasSaid, TestTheRowLimitPrintsThatManyAndSaysWhenItCut, TestTopReadsTheRecordAndNotTheTranscript, TestARowNamesTheHandleTheRecordKeysOn, TestASaveWillNotReplaceARecordItCannotRead, TestTheWriterThatSavesSecondKeepsTheOthersBits
+red: TestACountReadOneTooLowIsRefused, TestASingleFlippedBitIsAlwaysCaught, TestNoByteOfARealRecordCanBeFlippedUnnoticed, TestATruncatedStreamIsRefused, TestARecordAndItsViewsShareOneStream, TestASavedRecordComesBackWhole, TestAViewFromAnotherRecordIsFatal, TestAViewNamingAMissingBitIsFatal, TestAVoteViewOfSomethingElseIsFatal, TestEveryTruncationIsFatalAndNamesTheFile, TestNoSingleBitOfTheFileCanBeChangedQuietly, TestTheRecordSurvivesASaveThatFailed, TestAChangeThatCouldNotBeWrittenIsCarriedByTheNextOne, TestTheFileMatchesMemoryAfterEveryChange, TestABitSaidFromTheCommandLineFoldsLikeAnyOther, TestAReadingOfAnEmptyRecordSaysSo, TestNoCommandOnThisSurfaceCanCastAVote, TestSayPutsAnOrdinaryBitOnTheRecord, TestTheHeaderSaysHowMuchOfTheOrderAPersonDecided, TestTheMarkOnARowIsTheVoteThePersonCast, TestTheReadingKeepsTheShapeOfWhatWasSaid, TestTheRowLimitPrintsThatManyAndSaysWhenItCut, TestTopReadsTheRecordAndNotTheTranscript, TestARowNamesTheHandleTheRecordKeysOn, TestASaveWillNotReplaceARecordItCannotRead, TestTheWriterThatSavesSecondKeepsTheOthersBits, TestSayingBesideAnOpenSessionReachesTheNextOneJustTheSame
 sole: true
 ```
 
@@ -1525,10 +1537,25 @@ Two checks, because the mutation removes two guarantees at once and both are the
 claim. `TestTheWriterThatSavesSecondKeepsTheOthersBits` runs the real `say` verb
 and a second session against one file in both orders and requires every bit to be
 on the record afterwards — and requires the other writer's bit **not** to be in
-the second writer's view, which is the half that keeps the fix from being "merge
-the views too". `TestASaveWillNotReplaceARecordItCannotRead` holds the other
-consequence of reading before writing: a file this build cannot parse stops the
-save instead of being overwritten by it.
+the second writer's *running* view, which is the half that keeps the fix from
+being "merge the views too". `TestASaveWillNotReplaceARecordItCannotRead` holds
+the other consequence of reading before writing: a file this build cannot parse
+stops the save instead of being overwritten by it.
+
+*That first check used to make the "not in the view" assertion against the record
+**reloaded from the file** rather than against the view the second writer was
+still holding, and this block described it that way. Read as a specification, it
+said the other writer's bit must be in no transcript at all, ever — which is the
+defect `record.rejoin` was built to fix, written down here as a requirement
+(D52(c)'s shape, third instance). The assertion moved to the live view, where the
+sentence above always pointed, and the reload now carries the opposite assertion
+beside it.*
+
+*A third name joined with that repair, and it is not a third witness: without the
+merge, `TestSayingBesideAnOpenSessionReachesTheNextOneJustTheSame` never gets past
+"is it on the record at all", which is the same failure the first check reports in
+its own words. It is here because `sole: true` is a set assertion and it is in the
+set, not because it holds anything up that was not already held.*
 
 What neither buys, and the code says so where it happens: this is not a lock. The
 window between the read and the rename is milliseconds rather than a session, and
@@ -1540,8 +1567,49 @@ id: record-a-save-that-does-not-erase
 file: cmd/tldr/record.go
 find: \tif err := r.absorb(path); err != nil {\n\t\treturn fmt.Errorf("reading %s before replacing it: %w", path, err)\n\t}\n\treturn atomically(path, r.encode)
 after: \treturn atomically(path, r.encode)
-red: TestTheWriterThatSavesSecondKeepsTheOthersBits, TestASaveWillNotReplaceARecordItCannotRead
+red: TestTheWriterThatSavesSecondKeepsTheOthersBits, TestASaveWillNotReplaceARecordItCannotRead, TestSayingBesideAnOpenSessionReachesTheNextOneJustTheSame
 sole: true
+```
+
+## The transcript accounts for every utterance the record holds
+
+`tldr say` writes a bit and puts it in the transcript on the file. A session that
+is open holds its own transcript for the life of the process and writes it over
+that file at the next change, so the bit ended up in the store and in **no view**
+— not until the next session, permanently. With nothing else running the identical
+command put it on the next session's first screen, in the fold window and in what
+the persona is told. One command, two outcomes, selected by whether a terminal
+happened to be open somewhere else on the machine.
+
+It was never D1 or D14 failing: `tldr top` and the ranked surface both enumerate
+`Store.All` rather than a view, so the bit stayed reachable throughout. What was
+wrong is that the *transcript* disagreed with itself about the same act, and said
+so nowhere.
+
+`record.rejoin` is the repair, at load rather than on the save path — a save may
+not write a view the surface does not hold, or `tui.Save`'s whole sentence stops
+being true. The mutation makes it a no-op, which is the state the program shipped
+in. Note which row of the cited check reddens: *with a session open* fails and
+*with nothing else running* passes, so the two-outcome shape is what the check is
+measuring rather than something about `say` in general.
+
+`TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse` is the rule's own
+table, hand-built rather than driven through a file, and its "a fold is not
+undone" row is the one worth naming: `rejoin` asks whether a scar in the view
+absorbed a bit, and the obvious simplification is to ask only whether the view
+names it. Under that version every folded bit in every record is a stray and
+opening the program un-folds the conversation. Measured — dropping the `Absorbed`
+walk reddens that row plus `TestASavedRecordComesBackWhole`,
+`TestSayPutsAnOrdinaryBitOnTheRecord` and `TestTheFileMatchesMemoryAfterEveryChange`,
+which is why no `sole` is declared here: this mutation's blast radius is the whole
+transcript.
+
+```seam
+id: a-transcript-that-drops-a-stray
+file: cmd/tldr/record.go
+find: func (r record) rejoin() record {\n\theld :=
+after: func (r record) rejoin() record {\n\tif true {\n\t\treturn r\n\t}\n\theld :=
+red: TestSayingBesideAnOpenSessionReachesTheNextOneJustTheSame, TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse, TestTheWriterThatSavesSecondKeepsTheOthersBits
 ```
 
 ## A recorded message cannot draw a role boundary
@@ -1647,8 +1715,11 @@ sole: true
 
 `noscar` counts the stranded rows that have *no* scar directly above them — the
 question of whether a fold is silently unreachable (D1, D14) rather than merely
-illegible. It reads zero in all 138 rows of `tui/testdata/stranding.txt`, and
-that zero is the evidence D58(g)'s ruling rests on.
+illegible. It reads zero in all 270 rows of `tui/testdata/stranding.txt`, and
+that zero is the evidence D58(g)'s ruling rests on. It stayed zero when the
+sweep gained the length axis, at 200 and 800 bits as well as 400 — which is
+worth a sentence rather than silence, because a column that is constant is
+exactly the one a wider grid could have broken without anybody looking.
 
 A frozen table cannot hold that zero up on its own, and the asymmetry is the
 reason this block exists rather than a scruple about it. Measured both ways

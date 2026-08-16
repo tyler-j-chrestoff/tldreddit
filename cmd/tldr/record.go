@@ -1,12 +1,14 @@
 package main
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/tyler-j-chrestoff/tldreddit/memory"
 	"github.com/tyler-j-chrestoff/tldreddit/tui"
@@ -130,7 +132,128 @@ func load(path string) (record, error) {
 	if err != nil {
 		return record{}, fmt.Errorf("%s: %w", path, err)
 	}
-	return rec, nil
+	return rec.rejoin(), nil
+}
+
+// rejoin puts back into the transcript every utterance the record holds that the
+// transcript does not already account for.
+//
+// # The thing it fixes, which was one command with two outcomes
+//
+// [record.absorb] takes in the store and never the views, deliberately, so a
+// session that was open while something else said a thing goes on drawing the
+// screen it had. What that left unsaid is where the other writer's bit then
+// lives. The session's checkpoint writes the session's own [record.shown] over
+// whatever `tldr say` had put there, so the bit ended up in the store and in *no
+// view* — not until the next session, permanently. With no session open the
+// identical command left it in the transcript, and the next session opened with
+// it on screen, inside the fold window and inside the persona's context.
+//
+// So one command had two outcomes, selected by whether a terminal happened to be
+// open somewhere else on the machine — invisible to whoever ran it and invisible
+// to whoever reads the result. The bit stayed *reachable* the whole time, through
+// `tldr top` and the ranked surface, both of which enumerate [memory.Store.All]
+// rather than a view, so this was never D1 or D14 failing. It was the transcript
+// disagreeing with itself about the same act.
+//
+// # Why here, and not in absorb
+//
+// A save may not write a view the surface does not hold: [tui.Save]'s whole
+// sentence is that the file matches memory after every change, and a save path
+// that merged the file's view into what it writes would make that false in a way
+// no test on the surface could see. Reading is where the two arrangements can be
+// reconciled without lying to either.
+//
+// It is also the more general statement. This is a property of a record — every
+// utterance in it is in the transcript or behind a scar in the transcript —
+// rather than an agreement between the two writers this program happens to ship,
+// so a third writer, or a file somebody assembled by hand, gets it without
+// anything here learning that they exist.
+//
+// # What accounts for a bit
+//
+// The transcript naming it, or a scar in the transcript having absorbed it.
+// [memory.Compaction.Absorbed] is the whole of the second half and reaches every
+// generation: memory/cool.go merges an inner compaction's absorbed list into the
+// outer one, so an utterance folded three times over is still named by the scar
+// on screen. A scar's Prev would add nothing — it names originals too, and
+// differs only on the older scars beneath it, which are not utterances.
+//
+// Utterances are the only kind that can strand, which is why they are the only
+// kind looked for. A ballot is accounted for by the vote view, which is the view
+// this program never folds; a [memory.Compaction] is minted by [memory.View.Fold]
+// straight into a view and exists nowhere else. Those are the same two exclusions
+// tui's ranked reading and `tldr top` make, for the same reasons.
+//
+// # Where a stray lands
+//
+// Where it was said. The strays are ordered by their own instant and merged into
+// the transcript rather than appended to it, and both halves are load-bearing.
+// Appending would put an hour-old note below everything said since — and
+// [tui.Load] lands the caret on the last row, so the first thing a returning
+// reader's vote key aimed at would be the oldest of the strays. Merging also
+// tends to restore the edge: `tldr say` writes Prev as the file's head at that
+// instant, and the session checkpoints after every change, so the bit it named is
+// usually the row this puts it under. Usually and not always — a fold on the
+// session's side can have eaten that row, and then the stray sits under the scar
+// that took it, which is the honest place for it.
+//
+// A bit the view already named is never moved. The arrangement a previous session
+// arrived at is that session's, and nothing here has grounds to rewrite it; the
+// merge only ever inserts.
+//
+// What this does not do is reach a session that is already running. Nothing does,
+// and `tldr say` says so at more length: a view is a value that process holds.
+func (r record) rejoin() record {
+	held := make(map[string]bool, len(r.shown))
+	for _, id := range r.shown {
+		held[id] = true
+	}
+	// Bits rather than the addresses alone, because the scars are the half that
+	// does the work. It cannot panic on an unheld address along the path that
+	// matters: [record.check] refuses a file whose views name bits the record
+	// does not hold, and it runs inside [decode], which is the only way a file
+	// reaches this.
+	rows := r.shown.Bits(r.store)
+	for _, b := range rows {
+		if c, cold := b.Payload.(memory.Compaction); cold {
+			for id := range c.Absorbed() {
+				held[id] = true
+			}
+		}
+	}
+
+	var strays []memory.Bit
+	for b := range r.store.All() {
+		if _, said := b.Payload.(memory.Utterance); said && !held[b.ID] {
+			strays = append(strays, b)
+		}
+	}
+	if len(strays) == 0 {
+		return r
+	}
+
+	// [memory.Store.All] hands bits back in address order and says in its own doc
+	// that this is not a reading order, so the instant is the sort key and the
+	// address is only the tiebreak — present so that two loads of one file produce
+	// one transcript, not because an address means anything about when.
+	slices.SortFunc(strays, func(a, b memory.Bit) int {
+		return cmp.Or(a.At.Compare(b.At), cmp.Compare(a.ID, b.ID))
+	})
+
+	// A stray goes before the first row later than it, so a row sharing its
+	// instant keeps its place: the view's own order wins every tie.
+	out := make(memory.View, 0, len(r.shown)+len(strays))
+	i := 0
+	for _, s := range strays {
+		for i < len(rows) && !rows[i].At.After(s.At) {
+			out = append(out, r.shown[i])
+			i++
+		}
+		out = append(out, s.ID)
+	}
+	r.shown = append(out, r.shown[i:]...)
+	return r
 }
 
 // save writes the record to path, having first taken in whatever is already
@@ -168,10 +291,17 @@ func (r record) save(path string) error {
 // D1's sentence exactly: **a view is allowed to forget; the record is not.** A
 // session that was open while something else said a thing goes on drawing the
 // screen it had, and the thing that was said is on the record — reachable by
-// `tldr top`, which reads the store rather than a view, and by the next session,
-// which loads the file this writes. Merging the views instead would put a row on
-// a screen the person is looking at without them asking, and would have to decide
-// where in their transcript it goes, which nothing here can answer.
+// `tldr top`, which reads the store rather than a view. Merging the views instead
+// would put a row on a screen the person is looking at without them asking, and
+// would have to decide where in their transcript it goes, which nothing here can
+// answer.
+//
+// The next session is where that row does belong, and this is not what puts it
+// there. It used to say it was, and it was wrong: a save writes the session's own
+// view over whatever was in the file, so a bit taken in here reached the store
+// and no view at all — the next session's transcript included. [record.rejoin]
+// is the half that was missing, on the reading side where the two arrangements
+// can be reconciled without either of them being overwritten.
 //
 // The store is the pointer the caller handed in, so this grows the caller's own
 // record and not a copy. That is what makes a second save cheap and what makes

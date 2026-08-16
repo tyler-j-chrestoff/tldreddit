@@ -512,8 +512,8 @@ killed process, and there is none.
 
 The decision log publishes D1, D2, D3, D4, D5, D6, D7, D11, D12, D13, D14, D18,
 D19, D24, D26, D27, D28, D30, D31, D32, D33, D34, D35, D36, D37, D38, D39, D40,
-D42, D49, D50, D51, D52, D53, D54, D55, D57, D58, D59, D60 and D61 — forty-one
-entries. They are listed one by one rather than as a range on purpose: a
+D42, D49, D50, D51, D52, D53, D54, D55, D57, D58, D59, D60, D61 and D63 —
+forty-two entries. They are listed one by one rather than as a range on purpose: a
 range would quietly enclose the ones that are withheld.
 Those are withheld per entry rather than by any cutoff — some commercial, some
 about how this tree gets published — and the numbering is left intact rather

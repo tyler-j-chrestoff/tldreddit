@@ -941,20 +941,24 @@ config and isn't tracked, so a fresh clone needs
 - `tui/strand_test.go` — **the deterministic simulator and the frozen sweep it
   produces**, and the answer to the debt the entry above used to carry.
   `simulate` takes a `schedule` value rather than four positional arguments, so
-  the budget, the cut and — the axis nothing had ever moved — *where the upvote
-  lands* are all parameters; `strand` counts, per frame, a said bit still on
-  screen naming a `Prev` the view has let go, three ways (anyone's vote, the
-  human's held ones, and the held ones with no scar above them to walk back
-  through). `TestTheStrandingSweepReproducesItsFrozenTable` compares 138
+  the budget, the cut, *where the upvote lands* and — added when the table was
+  asked to settle an argument about a fold count and could not — *how long the
+  conversation ran* are all parameters; `strand` counts, per frame, a said bit
+  still on screen naming a `Prev` the view has let go, three ways (anyone's
+  vote, the human's held ones, and the held ones with no scar above them to walk
+  back through). `TestTheStrandingSweepReproducesItsFrozenTable` compares 270
   schedules against `tui/testdata/stranding.txt` and rewrites it under
   `-update`; `TestTheStrandingSweepCanReportEitherAnswer` is the null
-  hypothesis, and all four of its branches were stubbed red before the table's
-  green was believed. **Not behind `HARNESS`**, unlike everything in
-  `harness_test.go`: a frame dump's output is taste and a golden count is not,
-  and the three published stranding figures that nothing could re-derive are
-  what an ungated instrument costs. Runs the grid concurrently and once per
-  binary (`sync.OnceValue`), which is 5.6s under `-race` against 19.6s serial —
-  measured, and the reason it is affordable at every commit.
+  hypothesis, and each of its branches was stubbed red before the table's green
+  was believed — the four original ones, and the two that say the length axis
+  changes an answer, which were shown red three ways. **Not behind `HARNESS`**,
+  unlike everything in `harness_test.go`: a frame dump's output is taste and a
+  golden count is not, and the three published stranding figures that nothing
+  could re-derive are what an ungated instrument costs. Runs the grid
+  concurrently and once per binary (`sync.OnceValue`): 9.6s under `-race` for
+  the two tests that read it, and the whole `-race` suite went 52.7s to 53.4s
+  when the length axis doubled the grid, because the sweep overlaps the rest of
+  the package rather than adding to it.
 - `tui/testdata/stranding.txt` — the frozen sweep. Its header names every
   column and says which cells are deliberately blank. It is the only place in
   this repository where a stranding figure is re-derivable rather than quoted,
@@ -992,15 +996,41 @@ config and isn't tracked, so a fresh clone needs
   store is content-addressed: two writers cannot produce contents that disagree,
   so the union is `Put` in a loop and identical bits collapse. The store only —
   **a view is allowed to forget; the record is not** — so a bit said beside an
-  open session reaches the record and the next session's screen and never
-  interrupts the transcript somebody is reading. Two things stated where they
-  happen: this is not a lock (the window narrows from a whole session to the
-  milliseconds between the read and the rename, and closing it needs a lock file
-  that outlives a killed process), and a file this build cannot parse stops the
-  save rather than being overwritten by it. Claim
-  `record-a-save-that-does-not-erase`, two cited checks, `sole`. This was
+  open session reaches the record and never interrupts the transcript somebody is
+  reading. Two things stated where they happen: this is not a lock (the window
+  narrows from a whole session to the milliseconds between the read and the
+  rename, and closing it needs a lock file that outlives a killed process), and a
+  file this build cannot parse stops the save rather than being overwritten by it.
+  Claim `record-a-save-that-does-not-erase`, three cited checks, `sole`. This was
   disclosed as an accepted lost update in `say.go` before review named the
-  argument for accepting it a false choice.
+  argument for accepting it a false choice. *This entry, and that doc comment,
+  claimed the bit also reached the next session's screen; it did not, and
+  `rejoin()` below is what makes it true.*
+- `cmd/tldr/record.go`'s `rejoin()` — **a load puts back into the transcript
+  every utterance the record holds that the transcript does not account for**, and
+  it closes a defect that was one command with two outcomes. `absorb()` merges the
+  store and never the views, correctly; but the session's checkpoint then writes
+  its own `shown` over the file, so a bit written by `tldr say` beside an open
+  session landed in the store and in *no view at all* — permanently, not until the
+  next session. With nothing else running the identical command put it in the next
+  session's transcript, fold window and persona context. The selector was whether a
+  terminal happened to be open elsewhere on the machine, which is invisible to
+  everybody. Not a D1 or D14 failure — `tldr top` and `ctrl+t` both walk
+  `Store.All()`, so it stayed reachable — but the transcript disagreed with itself
+  about one act and said so nowhere. Accounted-for means *named by the view, or
+  absorbed by a scar in it*; `Compaction.Absorbed()` merges across generations
+  (`memory/cool.go`), so a bit folded three times over is still covered, and
+  utterances are the only kind that can strand (a ballot is in the vote view, a
+  compaction is minted straight into a view) — the same two exclusions
+  `tui/ranked.go`'s `judged` and `top.go`'s `reading` make. Strays are **merged by
+  instant, not appended**: appending would put an hour-old note below everything
+  said since, and `tui.Load` lands the caret on the last row. A bit the view
+  already named is never moved. At load rather than in `absorb()` because a save
+  may not write a view the surface does not hold, or `tui/save.go`'s sentence stops
+  being true — and because this is a property of a record rather than an agreement
+  between the two writers this program happens to ship. Claim
+  `a-transcript-that-drops-a-stray`, no `sole`: dropping the `Absorbed` walk
+  un-folds every conversation and reddens four checks well outside this rule.
 - `cmd/tldr/record.go`'s `checkpoint()` — **the file is now level with memory
   continuously, not at quit.** It returns a `tui.Save` bound to one path, and
   `tui.Load` takes it. Saving at exit made the whole promise conditional on a
@@ -1071,8 +1101,8 @@ config and isn't tracked, so a fresh clone needs
   window spanning two channels and the bit goes into the view the surface folds;
   the guarantee reaches identity in exactly one place, the human's own ref (below);
   and a bit said beside an open session reaches the
-  record but not that session's screen, which is `absorb()` above and D1's own
-  division. `say` prompts on stderr when standard input is a terminal and it was
+  record and the *next* session's screen but never that session's, which is
+  `absorb()` and `rejoin()` above and D1's own division. `say` prompts on stderr when standard input is a terminal and it was
   given no text, because otherwise the likeliest first invocation anybody types
   looks like a hung program. **`say` refuses a `-as` naming the person at the
   keyboard** (`tui.Human().Ref`, never a copied literal) — the write-yes/vote-no
@@ -1109,8 +1139,21 @@ config and isn't tracked, so a fresh clone needs
   `TestASaveWillNotReplaceARecordItCannotRead` live in `record_test.go` and hold
   `absorb()`: two writers over one file in both orders, every bit still on the
   record, and the other writer's bit deliberately **not** in the second writer's
-  view, which is the assertion that keeps the fix from growing into "merge the
-  views too".
+  *running* view, which is the assertion that keeps the fix from growing into
+  "merge the views too". *That assertion used to be made against the record
+  reloaded from the file instead, where it read as a requirement that the other
+  writer's bit be in no transcript ever — a check enforcing a defect (D52(c)), and
+  the third instance of that shape. It now asserts on the live view, and the
+  reload asserts the opposite beside it.*
+  `TestSayingBesideAnOpenSessionReachesTheNextOneJustTheSame` is the property
+  `rejoin()` exists for, stated as behaviour rather than as a rule: the same `say`
+  reaches the next session's transcript whether or not one was open while it ran.
+  Its session row asserts the stranding is actually reached before asserting it is
+  repaired, so the check cannot pass on a fixture that never produced the case.
+  `TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse` is `rejoin()`'s own
+  table, hand-built in memory — which is also what keeps it off
+  `record-frame-unclosed`, since a test that opens no file cannot trip the wire
+  format's claims.
 - `cmd/tldr/save_test.go` — drives the real surface with the real save path
   against a real file, asserting after every message that the file *read back*
   is the record the Model holds; a bit landing, a vote and a fold each get a

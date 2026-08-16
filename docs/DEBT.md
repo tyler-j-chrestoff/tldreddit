@@ -1,5 +1,18 @@
 # Open debt
 
+- **`decode` accepts a file with a fourth view stream, drops it, and says
+  nothing** (`cmd/tldr/record.go`). The three streams are self-delimiting so a
+  reader that has taken its three simply stops; there is no framing question it
+  could ask, which is `memory/wire.go:42-44`'s own point about a self-delimiting
+  format not being able to detect slack. Reproduced: a record plus three views
+  loads with a nil error, `store 12, shown 4, votes 2`, and the fourth stream is
+  gone. Untouched by `rejoin()` and not fixed by it — but `rejoin()` did move the
+  *symptom*, which is why this is written down now: a bit that only the dropped
+  stream named used to be stranded in the store, and is now silently in the
+  transcript instead. Neither state is an error and nothing notices either. The
+  fix is a count or a closing tag over the whole file, which is a format change
+  and a decision rather than a repair. Re-check: encode a fixture, append a
+  fourth `View.WriteAgainst` to the same buffer, `decode` it, and read the error.
 - The old Reddit-client thread (`cmd/tldr/model_test.go`, the M1 spec citing a
   never-written `docs/MILESTONES.md`) is **closed by deletion**, not
   reconciliation — CEO decision, the file specced a product that does not
@@ -586,9 +599,21 @@ New this checkpoint (the fold budget in rows — no decision number yet):
   frozen table answers a different schedule — a parameterized `back` (how far
   above the newest a vote lands) rather than a wall-clock vote-every-N-rounds
   — and the harness that produced 91/94/92 no longer exists to be re-run
-  beside it. What the frozen table does confirm independently: real
+  beside it. *Re-checked against the widened grid, which now sweeps the
+  conversation's length as well: they are still not reached and stay
+  unreconciled, but one explanation is now eliminated rather than merely
+  unlisted. Length is not the missing parameter. At the 23-row budget this
+  entry's own text names, the pre-`sparing` table reads 93.5% at one vote in
+  ten, 92.8% at one in five and **22.5%** at one in two; and no length rescues
+  the third, because `held%` is monotone in length and at that budget one vote
+  in two runs 16.0% at 100 bits to 24.7% at 3,200. Nor is any other cell a
+  match: 91/94/92 puts one-in-two (92%) above one-in-ten (91%), and in every
+  budget and length swept one-in-two is either a fifth of its neighbours (23-row
+  budget) or the lowest of the three (12-row). The gap is a difference in kind,
+  not in scale.* What the frozen table does confirm independently: real
   stranding, once a vote reaches beyond the kept tail, is large — it ranges
-  17.5% to 95.0% across 138 schedules — and the "0.0% at every vote rate"
+  17.5% to 95.0% across 270 schedules (the range is unchanged by the widening;
+  only the count moved) — and the "0.0% at every vote rate"
   reading published just below, after the `sparing` fix landed, is real but
   entailed by the schedule that measured it (it only ever voted on the
   just-added bit, whose `Prev` is by construction still in view), not a
@@ -962,3 +987,68 @@ not.
   that spared only real replies would have to read a distinction the record does
   not carry (see the `Prev` item above), so this is a `memory/` question about
   what a write records, and the cheap thing available first is the count.
+- **The request-failure block can print "nothing was recorded" directly above
+  the person's own recorded bit.** `tui/ask.go`'s `troubleBlock()` carries two
+  header ladders sharing one function: a request failure (ollama down, model
+  not pulled) heads with "nothing was recorded" (`tui/ask.go:910-914`), and a
+  save failure heads differently precisely because that claim would be false
+  there — the person's words *did* reach the record, only the file behind it
+  did not (see the package doc at `tui/ask.go:891-897`, and
+  `TestASaveThatFailedNeverSaysNothingWasRecorded`,
+  `tui/ask_test.go:228-268`). That test guards only the save-failure sibling
+  against the string; nothing guards the request-failure block itself. On a
+  request failure the person's own question is on the record and the header
+  above it — `record 1`, or whatever `m.store.Len()` reads (`tui/tui.go:815`)
+  — says so, one row above a block insisting nothing was. Found by
+  `tui-design-engineer` while being the first user (D51). Proposed fix:
+  `no answer was recorded`, which is true without qualification; the ladder
+  widths (`tui/ask.go:909-915`) would need re-measuring against the new
+  string's length, not copied from the old one. Re-check:
+  `grep -n '"nothing was recorded"' tui/ask.go`.
+- **D18 ruled that forum is the base abstraction. There is no forum in the
+  code, and there never has been.** Verified:
+  `grep -rn "forum" --include='*.go' .` returns **five** hits, not six —
+  and only four of the five are inside comments (`cmd/tldr/say.go:24,26`,
+  `memory/rank.go:39,98`); the fifth, `cmd/tldr/cli.go:139`, is a string
+  literal in the CLI's own help text (`"tldr — a forum-shaped memory you
+  can watch think"`), which is prose about the product, not documentation
+  of an abstraction the type system has. No `Forum` type exists anywhere
+  (`grep -rn "type Forum" --include='*.go' .` returns nothing). One
+  `Store` per process, instantiated at `cmd/tldr/record.go:122` and
+  `tui/tui.go:483` — both confirmed at those exact lines — and nothing in
+  the tree holds more than one (`grep -rn '\[\]Store\|map\[.*\]Store'
+  --include='*.go' .` returns nothing outside `memory/store.go`'s own
+  type definition). Nothing nests. This is the same class as the charter
+  saying four packages and then listing five (D47's own cut) — a decision
+  in force that the tree does not implement, unnoticed because nobody
+  re-derived it. Related, and worth reading beside it: `CLAUDE.md`'s
+  founding paragraph says "agents and subagents each hold their own
+  forum-memory, and those nest." That is the one line of the founding
+  paragraph with no code behind it. **Ruled on at D63(a): deferred, not
+  refused**, on the sequencing ground that a forum roster is a wire-format
+  break (`version` 1→2, `memory/wire.go:93`) — with a named trigger (D4's
+  collapse condition) rather than left open indefinitely. D63(c) rules
+  separately that an agent vote surface, if built, stays tiered rather than
+  banned, and leaves one question open: whether tier-two votes may reorder
+  a page the human has not yet judged. Neither is built.
+- **`record-frame-unclosed`'s `red:` list is 27 test-name literals
+  (`docs/CLAIMS.md:877-882`) and grows every trip.** D63(h) retires the
+  trigger meant to catch it (a trip with no bearing on the frame) as the
+  wrong instrument — nothing in the class that keeps tripping it can ever
+  satisfy that trigger, since a `cmd/tldr` test whose only state is a file
+  always has bearing on the frame. Left open: the readability cost of a
+  27-and-growing literal list. A format fix would let the claim name a
+  class ("these checks, plus every round-trip test") rather than enumerate
+  it; not built, and no new trigger fires until a round-trip test is added
+  and `seam` finds the list stale before its author does.
+- **D14 and the shipped product disagree about what "reachable" means, and
+  nobody has written the reconciliation down.** D14: reachable means
+  discoverable from a view, not merely resolvable by address. But
+  `Store.All()`, `tldr top` and `judged()` (`tui/tui.go`) all enumerate the
+  store directly, bypassing any view — which is a stronger notion of
+  reachable than D14 rejected, not a violation of it (`record.absorb`'s own
+  doc comment already argues this correctly). The gap: all three
+  enumerations admit `memory.Utterance` only, so a `Compaction` or `Vote`
+  that is in the store and in no view would be invisible under every
+  current definition. Recorded at D63(i) so this is not rediscovered as
+  new; not fixed here.

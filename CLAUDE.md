@@ -294,6 +294,8 @@ heading at that check and is fixed above; every other entry matched:
     a word bag. D60.
 41. `Prev` stops meaning a question, and stranding stops being
     asserted. D61.
+42. The forum container is deferred with a trigger, agent votes stay a
+    tier not a ban, and the CEO's own first ruling on both was wrong. D63.
 
 ## Working on the code
 
@@ -331,7 +333,8 @@ applies in a throwaway copy of the tree, asserting the cited test goes red.
 It never writes inside the repository. Read `docs/CLAIMS.md`'s header before
 running it or before writing a claim — the format, the verdicts, and why a
 declared `vacuous` is a finding rather than a failure are all explained there
-and nowhere else. Takes about 2m30s.
+and nowhere else. Measured 2026-08-16: 17m35s, not the 2m30s
+previously recorded here — plan a checkpoint accordingly.
 
 The file-by-file inventory — every package and test file, what it does, and
 which decision shaped it — is `docs/CODE.md`. *(Its line count used to be
@@ -355,31 +358,29 @@ inline, because each one would leave a CEO deciding the next work unit
 wrong without it — a roadmap input, not a curiosity — and are not repeated
 in `docs/DEBT.md`.
 
-- **A deterministic simulator exists — found and corrected D59(b), and its
-  own two named gaps are now closed, per D61(b).** `simulate()`
-  (`tui/harness_test.go`) is swept by `TestHarnessHoldSchedule`, gated
-  behind `HARNESS=1`. Exhaustive, not seeded — `grep -rln math/rand
-  --include='*.go' .` returns nothing anywhere in the module. A second
-  instrument, `tui/strand_test.go` + `tui/testdata/stranding.txt` (138
-  frozen schedules, `-update` flag), now parameterizes `budget`/`keep`
-  (both previously hardcoded) and counts a strand directly — **and runs
-  in the commit gate rather than behind `HARNESS`**, its own package doc
-  giving the reason: a strand count is a fact that reproduces or does
-  not, not a matter of taste. D59(c) — which found D58's "16 folds
-  before, zero after" reproduces at `bits = 200`, not the harness's
-  400-bit default — **stays genuinely open, per D61(e)**: the frozen
-  table sweeps only `bits = 400`, so it structurally cannot adjudicate
-  D59(c)'s bit-count account against a competing `budget`-axis one; both
-  stand as named candidates. `docs/DEBT.md`'s own three older stranding
-  figures (91/94/92%) are marked unreconciled against the new table, not
-  replaced — they answer a wall-clock schedule the frozen table's grid
-  does not sweep, and nothing in this tree can now reproduce the harness
-  that produced them.
+- **A deterministic simulator exists — found and corrected D59(b), its own
+  two named gaps closed per D61(b), and D59(c) itself now closed, per
+  D63(g).** `simulate()` (`tui/harness_test.go`) is swept by
+  `TestHarnessHoldSchedule`, gated behind `HARNESS=1`. Exhaustive, not
+  seeded — `grep -rln math/rand --include='*.go' .` returns nothing
+  anywhere in the module. A second instrument, `tui/strand_test.go` +
+  `tui/testdata/stranding.txt` (270 frozen schedules, `-update` flag),
+  parameterizes `budget`/`keep` and counts a strand directly — and runs in
+  the commit gate rather than behind `HARNESS`, its own package doc giving
+  the reason: a strand count is a fact that reproduces or does not.
+  **D59(c)'s verdict: neither candidate account was right** — both print
+  16 folds, because folding runs about linearly in length, so the
+  bit-count and budget axes were never in conflict; what adjudicated was
+  that D58(i)'s figure never came from `TestHarnessHoldSchedule` at all.
+  `docs/DEBT.md`'s three older stranding figures (91/94/92%) stay marked
+  unreconciled against the frozen table, not replaced — they answer a
+  wall-clock schedule the table's grid does not sweep.
 - **No search, no jump, no query — decided closed, not merely unbuilt
   (D58(a)).** There is a content-addressed caret (`Model.mark`,
-  `tui/tui.go:308`), a ranked surface on `ctrl+t` (`m.rank()`,
-  `tui/tui.go:595-597`), and `tldr top` (D51(e)/D56), which reads the whole
-  record ranked from outside the surface — none of the three takes a query.
+  `tui/tui.go:414`), a ranked surface on `ctrl+t` (`m.rank()`, called at
+  `tui/tui.go:706`, defined at `tui/tui.go:1384`), and `tldr top`
+  (D51(e)/D56), which reads the whole record ranked from outside the
+  surface — none of the three takes a query.
   `scope-adversary` argued for one; its own best counter-case, that a query
   could search *behind scars* where `grep` cannot, was checked and found
   false: `top -n 0 | grep` already does that, since `top` reads the whole
@@ -400,7 +401,7 @@ in `docs/DEBT.md`.
 - **The scar's word-bag summary — half closed, half open by decision
   (D60).** The human-facing half is built: the scar now quotes the
   top-ranked absorbed bit in that speaker's own words (`frame.quoted`,
-  `tui/render.go:124`), not `topWords(c.Bag(), …)`. The model-facing half
+  `tui/render.go:134`), not `topWords(c.Bag(), …)`. The model-facing half
   stays a word index on purpose, not by omission — sending the same
   vote-selected quotation to the persona would wire D39(a)'s sycophancy
   pump into the fold note, proven by a failing test built to check exactly

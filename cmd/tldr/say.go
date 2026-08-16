@@ -54,16 +54,22 @@ import (
 //
 // A bit said here while `tldr` is running does not appear in that session's
 // transcript. It cannot: the view on screen is a value that session holds, and
-// nothing reaches into a running process. The next session sees it, `tldr top`
-// sees it immediately, and that is D1's own division — **a view is allowed to
-// forget; the record is not.**
+// nothing reaches into a running process. `tldr top` sees it immediately, and
+// that is D1's own division — **a view is allowed to forget; the record is not.**
 //
-// The record itself is not at risk, and this used to say it was. A save is the
-// whole file, so the session's next checkpoint would once have overwritten this
-// bit outright; [record.absorb] is what closes that, by reading the file back
-// before replacing it and filing anything the writer lacks. What is left is a
-// window of milliseconds rather than a session, and [record.save] says exactly
-// how wide and why it is not worth a lock.
+// The next session sees it too, and for a while it did not. Two things had to be
+// true for that and only one of them was. [record.absorb] keeps the session's
+// next checkpoint from overwriting the bit outright, which is the record; but
+// that checkpoint still writes the session's own view, so the bit was left in no
+// transcript at all and the next session never drew it — while the identical
+// command run with no session open put it on that session's first screen. One
+// command, two outcomes, chosen by whether a terminal was open elsewhere.
+// [record.rejoin] is what makes the two agree, at load, and it also says why the
+// merge cannot live on the save path.
+//
+// What is left of the two-writer hazard is a window of milliseconds rather than a
+// session, and [record.save] says exactly how wide and why it is not worth a
+// lock.
 func say(s streams, path string, args []string) error {
 	fs := flag.NewFlagSet("say", flag.ContinueOnError)
 	fs.SetOutput(s.err)

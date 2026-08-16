@@ -127,6 +127,15 @@ func TestASavedRecordComesBackWhole(t *testing.T) {
 // and with no honest answer about where it goes. A view is allowed to forget;
 // the record is not.
 //
+// That half used to be asserted against the wrong view, and the wrong view made
+// it a specification of a defect (D52(c)'s shape). The prose says *the second
+// writer's screen*, and the assertion was on the record reloaded from the file
+// afterwards — which is not a screen, it is the next session. So the check
+// required the other writer's bit to be in no transcript at all, permanently,
+// which is exactly what [record.rejoin] was built to stop. It is now asserted
+// where the sentence points, on the view the second writer is still holding, and
+// the reload carries the opposite assertion beside it.
+//
 // What this does not test, because one process cannot produce it: two saves
 // genuinely in flight at once. The window [record.save] leaves is between its
 // read and its rename, and closing that needs a lock, which that function argues
@@ -232,13 +241,313 @@ func TestTheWriterThatSavesSecondKeepsTheOthersBits(t *testing.T) {
 				t.Errorf("%s is not in %s, and it is what the writer that saved last was showing",
 					memory.Short(mine.ID), shownName)
 			}
-			if slices.Contains(back.shown, theirs) {
-				t.Errorf("%s reached %s; the record takes in what another writer said and the view "+
-					"does not, because nothing here can say where in somebody's transcript it goes",
-					memory.Short(theirs), shownName)
+			if slices.Contains(held.shown, theirs) {
+				t.Errorf("%s reached the second writer's own %s; the record takes in what another "+
+					"writer said and the running session's view does not, because nothing here can "+
+					"say where in somebody's transcript it goes", memory.Short(theirs), shownName)
+			}
+			if !slices.Contains(back.shown, theirs) {
+				t.Errorf("%s is on the record and in no view of it; the session that opens this file "+
+					"next will not draw what the other writer said", memory.Short(theirs))
 			}
 		})
 	}
+}
+
+// One command, one outcome. `tldr say` reaches the next session's transcript
+// whether or not somebody had a session open while it ran.
+//
+// This is the property and not the mechanism, which is why it is asserted through
+// the file rather than over [record.rejoin]: what a person can observe is that
+// they ran a command and then opened the program. Before this held, the two
+// branches disagreed permanently — with a session open the bit reached the store
+// and no view at all, because that session's checkpoint wrote its own transcript
+// over the one `say` had left; with nothing else running the identical command
+// put it on the next session's first screen. Neither outcome was announced, and
+// the thing selecting between them was whether a terminal happened to be open
+// somewhere else on the machine.
+//
+// The session row asserts the stranding is actually reached, which is the half
+// that keeps this from passing on a fixture that never produced the case: the
+// session's own view must still not name the bit at the moment it saves. That
+// assertion is also the deliberate half of the design — nothing reaches into a
+// running process, and this fix did not change that.
+func TestSayingBesideAnOpenSessionReachesTheNextOneJustTheSame(t *testing.T) {
+	const text = "a handoff note written from outside the surface"
+
+	tests := []struct {
+		name string
+
+		// open is whoever else is holding the record while the command runs, and
+		// nil is nobody. It loads before `say` and checkpoints after, which is the
+		// order that made the two branches disagree.
+		open func(t *testing.T, path string) record
+	}{
+		{name: "with nothing else running"},
+		{
+			name: "with a session open the whole time",
+			open: func(t *testing.T, path string) record {
+				t.Helper()
+				r, err := load(path)
+				if err != nil {
+					t.Fatalf("the session's load: %v", err)
+				}
+				return r
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := saved(t, fixture(t))
+
+			var sess record
+			if tt.open != nil {
+				sess = tt.open(t, path)
+			}
+
+			out, _, err := ran(t, commands["say"], path, "", "-as", "an-agent", text)
+			if err != nil {
+				t.Fatalf("say: %v", err)
+			}
+			said := strings.TrimSpace(out)
+
+			if sess.store != nil {
+				// The person presses a key. A bit lands and the checkpoint writes
+				// the whole file, the session's own views included.
+				sess.shown, _ = sess.shown.Add(sess.store, memory.Bit{
+					At:      time.Date(2026, 8, 13, 10, 0, 0, 0, time.UTC),
+					From:    me,
+					Channel: "tui",
+					Payload: memory.Utterance{Text: "and this is what the session itself was saying"},
+					Prev:    sess.shown.Head(),
+				})
+				if err := sess.save(path); err != nil {
+					t.Fatalf("the session's checkpoint: %v", err)
+				}
+				if slices.Contains(sess.shown, said) {
+					t.Fatalf("%s is in the open session's own %s, so this row never reached the case "+
+						"it is about and would pass against a transcript nothing repairs",
+						memory.Short(said), shownName)
+				}
+			}
+
+			next, err := load(path)
+			if err != nil {
+				t.Fatalf("the next session's load: %v", err)
+			}
+			if _, ok := next.store.Get(said); !ok {
+				t.Fatalf("%s is not on the record at all", memory.Short(said))
+			}
+			if !slices.Contains(next.shown, said) {
+				t.Errorf("%s is on the record and %s does not name it, so the next session opens "+
+					"without it in the transcript, in the fold or in what the persona is told — "+
+					"which is what running the same command with nothing else open would have given",
+					memory.Short(said), shownName)
+			}
+		})
+	}
+}
+
+// A load puts back what nothing accounts for, and moves nothing else.
+//
+// Hand-built rather than driven through the file, because the rows that matter
+// are ones no sequence of commands produces: a stray older than the newest row, a
+// record with no stray at all, and — the one that would be catastrophic — a
+// transcript whose fold this could undo. `rejoin` asks whether a scar in the view
+// absorbed the bit, and the tempting simplification is to ask only whether the
+// view names it. Under that version every folded bit in every record is a stray,
+// and opening the program un-folds the whole conversation. The "a fold is not
+// undone" row is the only thing in this repository that would say so.
+//
+// Every want is written out by hand from the stated rule, not computed through
+// the function under test.
+func TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse(t *testing.T) {
+	at := func(m int) time.Time {
+		return time.Date(2026, 8, 16, 9, 0, 0, 0, time.UTC).Add(time.Duration(m) * time.Minute)
+	}
+
+	// said files a bit in the store without putting it in any view, which is the
+	// state another writer's bit is in by the time this runs.
+	said := func(s *memory.Store, m int, text string) memory.Bit {
+		return s.Put(memory.Bit{
+			At:      at(m),
+			From:    me,
+			Channel: "tui",
+			Payload: memory.Utterance{Text: text},
+		})
+	}
+
+	tests := []struct {
+		name string
+
+		// build returns the record as it came off the file, and the transcript
+		// the rule says a load owes back.
+		build func(t *testing.T) (record, memory.View)
+	}{
+		{
+			name: "a record nobody wrote beside comes back untouched",
+			build: func(t *testing.T) (record, memory.View) {
+				t.Helper()
+				s := memory.NewStore()
+				a, b, c := said(s, 0, "one"), said(s, 1, "two"), said(s, 2, "three")
+				shown := memory.View{a.ID, b.ID, c.ID}
+				return record{store: s, shown: shown}, memory.View{a.ID, b.ID, c.ID}
+			},
+		},
+		{
+			name: "a stray lands between the rows it was said between",
+			build: func(t *testing.T) (record, memory.View) {
+				t.Helper()
+				s := memory.NewStore()
+				a, b, c := said(s, 0, "one"), said(s, 2, "three"), said(s, 4, "five")
+				stray := said(s, 3, "said beside a session, after three and before five")
+				return record{store: s, shown: memory.View{a.ID, b.ID, c.ID}},
+					memory.View{a.ID, b.ID, stray.ID, c.ID}
+			},
+		},
+		{
+			name: "a stray older than everything shown goes first",
+			build: func(t *testing.T) (record, memory.View) {
+				t.Helper()
+				s := memory.NewStore()
+				a, b := said(s, 4, "five"), said(s, 6, "seven")
+				stray := said(s, 1, "said before either of them")
+				return record{store: s, shown: memory.View{a.ID, b.ID}},
+					memory.View{stray.ID, a.ID, b.ID}
+			},
+		},
+		{
+			name: "a stray newer than everything shown goes last",
+			build: func(t *testing.T) (record, memory.View) {
+				t.Helper()
+				s := memory.NewStore()
+				a, b := said(s, 0, "one"), said(s, 1, "two")
+				stray := said(s, 9, "said after the session stopped writing")
+				return record{store: s, shown: memory.View{a.ID, b.ID}},
+					memory.View{a.ID, b.ID, stray.ID}
+			},
+		},
+		{
+			// Four rather than two, because the mutation this row is against is
+			// dropping the sort and taking [memory.Store.All]'s address order
+			// instead. Address order is a fixed permutation of these particular
+			// bits, so with two strays the row is one coin flip away from passing
+			// against a version with no sort at all; four leaves it one in
+			// twenty-four.
+			name: "strays keep the order they were said in",
+			build: func(t *testing.T) (record, memory.View) {
+				t.Helper()
+				s := memory.NewStore()
+				a := said(s, 0, "one")
+				w, x := said(s, 2, "then this"), said(s, 3, "and then this")
+				y, z := said(s, 4, "and this"), said(s, 5, "and finally this")
+				return record{store: s, shown: memory.View{a.ID}},
+					memory.View{a.ID, w.ID, x.ID, y.ID, z.ID}
+			},
+		},
+		{
+			name: "a fold is not undone",
+			build: func(t *testing.T) (record, memory.View) {
+				t.Helper()
+				s := memory.NewStore()
+
+				// Folded twice, so the scar on screen stands for an older scar as
+				// well — Absorbed merges across generations and this is the row
+				// that depends on it doing so. More bits go in between the two
+				// folds because a scar alone is a run of one, which D32's size
+				// rule refuses to cool.
+				var shown memory.View
+				say := func(from, n int) {
+					for i := from; i < from+n; i++ {
+						shown, _ = shown.Add(s, memory.Bit{
+							At:      at(i),
+							From:    me,
+							Channel: "tui",
+							Payload: memory.Utterance{Text: fmt.Sprintf("bit %d", i)},
+							Prev:    shown.Head(),
+						})
+					}
+				}
+				fold := func() {
+					folded, ok := shown.Fold(s, 3, memory.Stay{})
+					if !ok {
+						t.Fatal("the fixture did not fold, so nothing here is behind a scar")
+					}
+					shown = folded
+				}
+				say(0, 8)
+				fold()
+				say(8, 4)
+				fold()
+
+				if len(shown) >= s.Len() {
+					t.Fatalf("%d bits are shown out of %d in the store, so no bit is only reachable "+
+						"through a scar and this row asserts nothing", len(shown), s.Len())
+				}
+				return record{store: s, shown: shown}, slices.Clone(shown)
+			},
+		},
+		{
+			name: "a stray beside a fold lands without disturbing it",
+			build: func(t *testing.T) (record, memory.View) {
+				t.Helper()
+				s := memory.NewStore()
+
+				var shown memory.View
+				for i := range 8 {
+					shown, _ = shown.Add(s, memory.Bit{
+						At:      at(i),
+						From:    me,
+						Channel: "tui",
+						Payload: memory.Utterance{Text: fmt.Sprintf("bit %d", i)},
+						Prev:    shown.Head(),
+					})
+				}
+				folded, ok := shown.Fold(s, 3, memory.Stay{})
+				if !ok {
+					t.Fatal("the fixture did not fold, so nothing here is behind a scar")
+				}
+				shown = folded
+
+				stray := said(s, 20, "said long after the fold")
+				return record{store: s, shown: shown}, append(slices.Clone(shown), stray.ID)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec, want := tt.build(t)
+			was := slices.Clone(rec.shown)
+
+			got := rec.rejoin()
+			if !slices.Equal(got.shown, want) {
+				t.Errorf("%s came back as %v, want %v", shownName, shorten(got.shown), shorten(want))
+			}
+
+			// Insertion and never rearrangement: whatever the view already named
+			// is still in the order the session that wrote it arrived at.
+			kept := slices.DeleteFunc(slices.Clone(got.shown), func(id string) bool {
+				return !slices.Contains(was, id)
+			})
+			if !slices.Equal(kept, was) {
+				t.Errorf("the rows already in %s came back as %v, want %v — a load may insert into "+
+					"somebody's transcript and may not rearrange it",
+					shownName, shorten(kept), shorten(was))
+			}
+		})
+	}
+}
+
+// shorten is a view as a failure message should print it: whole addresses are
+// sixty-four characters and a row of them says nothing a reader can compare.
+func shorten(v memory.View) []string {
+	out := make([]string, 0, len(v))
+	for _, id := range v {
+		out = append(out, memory.Short(id))
+	}
+	return out
 }
 
 // A file this build cannot read stops the save rather than being replaced by it.

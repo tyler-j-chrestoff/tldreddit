@@ -22,6 +22,23 @@
 //
 //	go test ./tui/ -run TestTheStrandingSweep -update
 //
+// # The length of the conversation is the fourth axis, and it settled an argument
+//
+// The table froze at 400 bits, and a fold count is not attributable to a schedule
+// that fixes the length: 16 folds before the sparing rule is exact at 400 bits
+// with a 23-row budget and exact again at 200 bits with a 12-row one. Two
+// accounts of one published figure, and the instrument could not tell them apart
+// because it could only ever produce one of the cells. It sweeps both now, so the
+// question is a diff.
+//
+// The axis is not there only for that argument, and the two things it moves are
+// the reason it stays: held% climbs toward 100% with length, because a strand is
+// permanent once made, so a stranding share is partly a statement about how long
+// the conversation ran; and a hold that outlives a 400-bit conversation does not
+// outlive an 800-bit one, so the record that "stops consolidating entirely" at a
+// 30-minute hold resumes once the oldest votes start lapsing. Both were invisible
+// at one length, and neither is a fact about the fold rule.
+//
 // # Why this one is not behind HARNESS
 //
 // Everything in harness_test.go is skipped unless HARNESS is set, and the line
@@ -64,7 +81,17 @@ const golden = "testdata/stranding.txt"
 // does; none of them decides how it is reported.
 type schedule struct {
 	// bits is how many utterances the conversation runs to, alternating between
-	// the human and a model.
+	// the human and a model. An axis rather than the constant it was until this
+	// table was asked to settle an argument about one and could not.
+	//
+	// Two columns move with it and neither is obvious from the schedule. Folds,
+	// because a conversation twice as long folds about twice as often — which is
+	// how one published fold count turned out to be exact at two different
+	// (bits, budget) pairs, and why a count quoted without both is not
+	// attributable to either. And held%, because a strand is permanent once made:
+	// the bit that lost its parent keeps standing there, so the share of frames
+	// holding one climbs toward 100% with length, and a stranding percentage
+	// quoted without a bit count is partly a statement about the bit count.
 	bits int
 
 	// rate is one upvote every rate bits. Zero is nobody voting, which is the
@@ -414,39 +441,72 @@ func TestAHeldStrandWithNoFoldAboveItIsCounted(t *testing.T) {
 
 // grid is every schedule the frozen table covers.
 //
-// Two blocks, and the split is deliberate. The first sweeps the record's own
-// published schedule — 400 bits at one every 3.5 seconds — across both hold
-// regimes, three terminal budgets and the vote rates the figures were quoted at,
-// with back as the axis nothing had ever moved. The second holds all of that
-// still and moves the keep alone, because a keep is a claim about a program
-// nobody is running (see [schedule].keep) and mixing it into the first block
-// would make every row there ambiguous about which program it describes.
+// Three blocks, and each split is deliberate.
 //
-// Nobody-voting appears once per record shape rather than once per back: with no
-// vote to place there is nowhere to place it, and five identical rows would read
-// as five measurements.
+// The first sweeps the record's own published schedule — one bit every 3.5
+// seconds — across both hold regimes, three terminal budgets, the vote rates the
+// figures were quoted at, back as the axis nothing had ever moved, and two
+// conversation lengths. The lengths are 200 and 400 because those are the two
+// candidate accounts of one published fold count: the number is exact at 400
+// bits and a 23-row budget, and exact again at 200 bits and a 12-row one, and no
+// table that fixed the length could say so. They sit adjacent in the output for
+// that reason — the pair of rows either side of a length change is the whole
+// answer to "is this figure about the budget or about how long the conversation
+// ran", and it is a diff rather than an argument now.
+//
+// The second is six rows at 800 bits, and it exists because the first block's
+// 30-minute half reads as a permanent cliff and is not one. A hold is measured in
+// the conversation's own time, so thirty minutes of it is 1,800 seconds at 3.5
+// seconds a bit — about 515 bits, and no further. Short of that every vote ever
+// cast is still holding, D32's size rule refuses every free run, the record stops
+// consolidating entirely and the view keeps every bit anybody wrote. Past it the
+// oldest holds start lapsing and folding resumes. A table that stopped at 400
+// would print "0 folds" for that whole family with nothing indicating the zero
+// has a far edge, which is the shape of a figure that is true and reads as more
+// than it is.
+//
+// The third holds everything still and moves the keep alone, at 400 bits,
+// because a keep is a claim about a program nobody is running (see
+// [schedule].keep) and mixing it into the first block would make every row there
+// ambiguous about which program it describes.
+//
+// Nobody-voting appears once per record shape and length rather than once per
+// back: with no vote to place there is nowhere to place it, and five identical
+// rows would read as five measurements.
 func grid() []schedule {
-	const bits = 400
 	const cadence = 3500 * time.Millisecond
+	lengths := []int{200, 400}
 
 	var out []schedule
 	for _, hold := range []time.Duration{holdFor, memory.DefaultHold} {
 		for _, budget := range []int{coolFloor, 23, 73} {
-			out = append(out, schedule{bits: bits, budget: budget, cadence: cadence, hold: hold})
+			for _, bits := range lengths {
+				out = append(out, schedule{bits: bits, budget: budget, cadence: cadence, hold: hold})
+			}
 			for _, rate := range []int{2, 3, 5, 10} {
 				for _, back := range []int{0, 1, 3, 6, 12} {
-					out = append(out, schedule{
-						bits: bits, rate: rate, back: back,
-						budget: budget, cadence: cadence, hold: hold,
-					})
+					for _, bits := range lengths {
+						out = append(out, schedule{
+							bits: bits, rate: rate, back: back,
+							budget: budget, cadence: cadence, hold: hold,
+						})
+					}
 				}
 			}
+		}
+	}
+	for _, budget := range []int{coolFloor, 23, 73} {
+		for _, rate := range []int{2, 3} {
+			out = append(out, schedule{
+				bits: 800, rate: rate, back: 0,
+				budget: budget, cadence: cadence, hold: memory.DefaultHold,
+			})
 		}
 	}
 	for _, keep := range []int{3, 6, 11, 17} {
 		for _, back := range []int{0, 6, 12} {
 			out = append(out, schedule{
-				bits: bits, rate: 5, back: back,
+				bits: 400, rate: 5, back: back,
 				budget: 23, keep: keep, cadence: cadence, hold: holdFor,
 			})
 		}
@@ -493,6 +553,11 @@ One row per schedule, every number a count except the last. Frozen by
 
 keep     'cut' is keepFrom, the program's own rule; a number is a fixed cut.
 back     said rows above the newest that the upvote landed on, scars skipped.
+bits     how long the conversation ran, and an axis rather than a constant
+         because two columns here are not invariant in it: folds, roughly
+         with the length, and held%, which climbs toward 100% because a
+         strand is permanent once made. A stranding percentage quoted
+         without a bit count is partly a statement about the bit count.
 missed   times the schedule wanted a vote and the view did not reach back
          that far, so none was cast.
 any      frames holding a said bit whose Prev has left the view, anyone's
@@ -512,9 +577,9 @@ held%    held over frames, and blank where missed exceeds votes: a schedule
          rate its row names, and a percentage there would be read as one.
 
 `)
-	fmt.Fprintf(&b, "%6s %5s %5s %5s %5s │ %6s %6s %6s %6s %6s │ %6s %6s %6s %6s %5s %6s │ %7s\n",
-		"hold", "budg", "keep", "rate", "back",
-		"bits", "frames", "votes", "missed", "folds",
+	fmt.Fprintf(&b, "%6s %5s %5s %5s %5s %5s │ %6s %6s %6s %6s │ %6s %6s %6s %6s %5s %6s │ %7s\n",
+		"hold", "budg", "keep", "rate", "back", "bits",
+		"frames", "votes", "missed", "folds",
 		"worst", "mean", "any", "held", "peak", "noscar", "held%")
 
 	for i, sc := range grid() {
@@ -542,9 +607,9 @@ held%    held over frames, and blank where missed exceeds votes: a schedule
 			share = fmt.Sprintf("%5.1f%%", 100*float64(o.held)/float64(o.frames))
 		}
 
-		fmt.Fprintf(&b, "%6s %5d %5s %5s %5s │ %6d %6d %6d %6d %6d │ %6d %6.1f %6d %6d %5d %6d │ %7s\n",
-			sc.hold, sc.budget, keep, rate, where,
-			sc.bits, o.frames, o.votes, missed, o.folds,
+		fmt.Fprintf(&b, "%6s %5d %5s %5s %5s %5d │ %6d %6d %6d %6d │ %6d %6.1f %6d %6d %5d %6d │ %7s\n",
+			sc.hold, sc.budget, keep, rate, where, sc.bits,
+			o.frames, o.votes, missed, o.folds,
 			o.worst, float64(o.rows)/float64(o.frames), o.any, o.held, o.peak, o.noscar, share)
 	}
 	return b.String()
@@ -621,6 +686,30 @@ func TestTheStrandingSweepReproducesItsFrozenTable(t *testing.T) {
 // consolidating entirely. That is D58(i)'s cliff, it is in the frozen table
 // deliberately, and a check that called it broken would have been a check
 // enforcing that the cliff stay unmeasured.
+//
+// # The length axis has to change an answer, or it is a column and not an axis
+//
+// The last two assertions are about [schedule].bits, and they are here rather
+// than in a test of their own because a new name in this package is a citation
+// audit against every `sole: true` claim in `docs/CLAIMS.md` that a fold count
+// reddens — five of them cite this sweep already.
+//
+// Both directions of the reason bits was made an axis are asserted, because a
+// length that never decides anything is a column the next person is right to
+// collapse back into a constant, and the golden cannot object: it is regenerated
+// with -update, so a grid that stopped sweeping lengths would freeze clean.
+// Folding first — some pair of schedules alike but for their length must
+// disagree about whether the record consolidated at all, which is the cliff
+// having a far edge. Then stranding — some such pair must disagree about the
+// share of frames holding a strand, which is what makes a stranding percentage
+// partly a statement about how long the conversation ran.
+//
+// Shown able to fail before either green was believed, three stubs in a scratch
+// copy: one length and no 800-bit block reddens both; two lengths and no 800-bit
+// block reddens the consolidation branch alone, which is what says the far edge
+// is holding that one up and not the pair merely existing; and the same length
+// twice reddens both, which is what says the comparison is about the length
+// rather than about there being two rows to compare.
 func TestTheStrandingSweepCanReportEitherAnswer(t *testing.T) {
 	all := grid()
 	if len(all) == 0 {
@@ -656,5 +745,31 @@ func TestTheStrandingSweepCanReportEitherAnswer(t *testing.T) {
 	if clean == 0 {
 		t.Error("every schedule in the grid strands a held row, so the table cannot tell a fix " +
 			"from a fixture")
+	}
+
+	// Everything but the length, which is what makes two rows a pair.
+	type shape struct {
+		rate, back, budget, keep int
+		cadence, hold            time.Duration
+	}
+	seen := map[shape]outcome{}
+	consolidates, strands := false, false
+	for i, sc := range all {
+		o := swept()[i]
+		k := shape{sc.rate, sc.back, sc.budget, sc.keep, sc.cadence, sc.hold}
+		if was, ok := seen[k]; ok {
+			consolidates = consolidates || (was.folds == 0) != (o.folds == 0)
+			strands = strands ||
+				float64(was.held)/float64(was.frames) != float64(o.held)/float64(o.frames)
+		}
+		seen[k] = o
+	}
+	if !consolidates {
+		t.Error("no two schedules alike but for their length disagree about whether the record " +
+			"consolidated at all, so the table says nothing about a conversation outrunning its holds")
+	}
+	if !strands {
+		t.Error("no two schedules alike but for their length strand a different share of frames, " +
+			"so bits is a column rather than an axis and every percentage here is quoted without it")
 	}
 }
