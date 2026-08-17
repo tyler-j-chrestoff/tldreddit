@@ -177,14 +177,16 @@ denial conflated research capability with craft memory; the capability is
 granted, the record still is not, on the same evidence standard as
 `archivist`'s. See D40, D58(l).
 
-**Research is a scheduled beat, not a felt need (D58(k)).** The cost of not
-looking is invisible — nothing announces a missed prior-art check the way a
-red test announces a bug — so it cannot wait for one to be felt. One seat
-per checkpoint, rotating; one named trigger, **before building any
-instrument, look for one that exists**; craft records gain a second kind of
-entry, what a seat learned by *looking*, kept distinguishable from what it
-learned by building; the CEO takes the prior-art beat itself, with D56(i)
-as the receipt that it already paid once.
+**Research is a scheduled beat, not a felt need (D58(k)), watching a named
+lineage rather than a generic search (D67(h)).** The cost of not looking is
+invisible — nothing announces a missed prior-art check the way a red test
+announces a bug — so it cannot wait for one to be felt. One seat per
+checkpoint, rotating; one named trigger, **before building any instrument,
+look for one that exists**; craft records gain a second kind of entry, what
+a seat learned by *looking*, kept distinguishable from what it learned by
+building; the CEO takes the prior-art beat itself. **Standing watch, named at
+D67(h):** the self-improving-agent lineage (Gödel-machine line: DGM → HGM →
+DGM-H → RQGM → Mendel Gödel Machine).
 
 **Dispatch policy.** Route by the seat's `description`. Delegate real units of
 work, not keystrokes — a subagent that needs three rounds of clarification cost
@@ -222,9 +224,9 @@ entries below seem to disagree (the later one wins; the earlier one is how
 you tell what changed). It is append-only: never edit or delete an entry
 there. One line per decision below, title only, verified against that file's
 own headings on 2026-08-16 — D61's line carried backticks around `Prev` that
-the actual heading does not have, and is fixed above; D66 is new this pass
-and matches its heading exactly; every other entry, including D47's line
-fixed at the 2026-08-14 check, matched:
+the actual heading does not have, and is fixed above; every other entry
+through D66, including D47's line fixed at the 2026-08-14 check, matched.
+D67 and D68 are new this pass and match their headings exactly:
 
 1. The record does not forget; the view does. D1.
 2. Self-modification is composition from primitives. D2.
@@ -300,6 +302,11 @@ fixed at the 2026-08-14 check, matched:
     tier not a ban, and the CEO's own first ruling on both was wrong. D63.
 43. Enumeration is a third mode D14 does not count, and the definition
     nobody had written down was hiding a bug that strands a vote. D66.
+44. The founder pointed at a fast-moving field, and the sweep came back
+    with the first outside measurement of D1 and a competitor D1 never
+    considered. D67.
+45. Four wrong figures in D67, one of them inside the clause about not
+    trusting a figure. D68.
 
 ## Working on the code
 

@@ -271,7 +271,7 @@ list simply stopped there, which is what happened to D36(k), D50(o),
 D51(h)+(i), D52(l), D53(f)+(g), D54(h)+(i), D59(q) and D63(j).
 
 **This copy publishes D1–D7, D11–D14, D18, D19, D24, D26–D28, D30–D40, D42,
-D49, D50, D51, D52–D55, D57–D61, D63, D66.** Stated that way round on purpose: what is
+D49, D50, D51, D52–D55, D57–D61, D63, D66, D67, D68.** Stated that way round on purpose: what is
 published is a fact about this file, checkable by reading the file, and it
 stays true until more is published. A count of what is *withheld* would be a
 fact about a repository you cannot see — it goes stale here whenever that log
@@ -4935,9 +4935,362 @@ hypothesis runs, in either direction the measurement points.
 
 ---
 
-## After D66
+## D67 — The founder pointed at a fast-moving field, and the sweep came back with the first outside measurement of D1 and a competitor D1 never considered
 
-D66 is the newest entry published here, and, as of this push, it is also the
+**2026-08-16**
+
+**Status:** mixed, per clause. (a) is tested — the DGM ablation table
+re-derived by the CEO directly from the paper's extracted text, the
+tiering of the isolation proposed by `decision-guard` and adopted; the
+paper's own n=1 cells and its reported 2.3% run-to-run sd are named rather
+than re-run. (b) is asserted — arXiv API phrase counts run directly by
+`decision-guard`, not re-run by the CEO. (c) is a ruling, reached
+independently by two seats and adopted. (d) is tested — both citations
+re-derived by the CEO at source against `memory/bit.go` and
+`memory/view.go`. (e) is asserted — the character count and phrase-query
+results are `decision-guard`'s, not re-run; the phrase-match limitation is
+stated with the claim. (f) is open, named as the next research unit rather
+than answered. (g) is asserted, from RQGM and the cited bias-measurement
+papers, not re-run. (h) is a ruling on how research is organised, not a
+factual claim. (i) is tested — the `grep`-returns-nothing-including-for-
+"the" failure and its Python re-count are the CEO's own account of
+`decision-guard`'s process, not independently re-run here.
+
+**(a) TESTED: D1 has external evidence for the first time in the
+project's life.** The Darwin Gödel Machine (arXiv `2505.22954`,
+Zhang/Hu/Lu/Lange/Clune, submitted 2025-05-29, ICLR 2026) publishes this
+ablation. Re-derived by the CEO directly from the paper's extracted text,
+not taken from the sweep's report:
+
+| Method | SWE-bench | Polyglot |
+|---|---|---|
+| DGM | 50.0% | 38.0% |
+| DGM w/o Open-ended exploration | 23.0% | 14.0% |
+| DGM w/o Self-improve | 39.0% | 28.0% |
+| DGM Greedy | 39.7% | 30.0% |
+
+**Removing the archive costs more than removing self-improvement** (23.0%
+vs 39.0%). The paper's own gloss, quoted: "only the most recent agent is
+retained, so a poorly performing self-modification makes subsequent
+improvements harder to achieve."
+
+The cleaner isolation, proposed by `decision-guard` and adopted: 23.0% (no
+archive) against 39.7% (archive kept, greedy selection) holds selection
+non-diverse in both arms, so **retention alone is worth ~16.7 points on
+SWE-bench.**
+
+**What does not survive, stated with the claim rather than below it:** DGM
+discards agents that fail to compile, so it is not literally never-forget;
+the ablation cells are n=1; DGM's own reported run-to-run sd is 2.3%
+(Polyglot, n=3), which the gaps clear by a wide margin but which is a
+figure about the main result, not the ablations. **The claim that
+survives: retaining suboptimal material beats retaining only the best or
+only the latest, measured, by someone else, at a top venue.** D1 was
+decided in session one on an argument — "you can add collection later, you
+can never un-delete" — with no evidence. It has evidence now.
+
+**(b) ASSERTED: the field is growing but is not accelerating, and the
+difference matters.** `decision-guard` ran the arXiv API directly.
+Abstract-phrase counts by submission year: "recursive self-improvement" 2
+/ 9 / 29; "self-improving agent(s)" 1 / 18 / 30; "self-evolving agent" 2 /
+19 / 97 (2024 / 2025 / 2026-to-16-Aug). **Year-over-year growth is real and
+large, ~2.7x–8x. Month-over-month inside 2026 is not accelerating** —
+"self-improving agents" runs 3, 3, 2, 2, 6, 4, 8, 2: noise around a raised
+floor.
+
+The RSI survey (`2607.07663`) supplies the sharpest available line and
+disqualifies its own headline figure in the same breath — it reports
+quarterly growth to ~500 papers in 2026 Q2, then notes "the supplemental
+harvest is recency-biased by construction." Its diagnosis: "The
+literature's terminology has proliferated faster than its concepts."
+
+The Gödel-machine lineage is five papers in fifteen months — DGM
+(2025-05-29), HGM (2025-10-24), HyperAgents/DGM-H (2026-03-19), RQGM
+(2026-06-24), **Mendel Gödel Machine (`2608.07645`, 2026-08-07, which the
+CEO's own framing had missed entirely, nine days old at the time of the
+sweep)** — on top of Schmidhuber's original (`cs/0309048`, 2003).
+**DARWIN (`2602.05848`) is excluded from that lineage on purpose**: single
+author, nanoGPT, five iterations, +1.26% MFU. It shares a name and nothing
+else, and counting it is exactly the "papers sharing a naming convention"
+inflation the sweep was asked to test for.
+
+RQGM's affiliations, from the PDF's own title block rather than press:
+**Cambridge, NVIDIA, Flower Labs, MBZUAI, Inria.** Press reporting of
+"Cambridge and NVIDIA" is confirmed and incomplete.
+
+**(c) RULING: "anchor infrastructure for self-improving agents" is
+considered and rejected. Do not re-argue it.** The CEO proposed, roughly
+two hours after reading one summary of one paper, that self-improving
+systems all need a Ground-Truth Anchor of scarce human judgment, that
+tldreddit produces exactly that as a byproduct, and that this is therefore
+what the company is for. **It is wrong, and it was killed twice within the
+hour by two seats reaching it independently.**
+
+- **`scope-adversary`, from the paper's own abstract:** RQGM's thesis is
+  that the fixed human-labelled anchor is *the thing to escape* — "opening
+  search to evolving evaluators, adversarial objectives, and dynamic
+  utilities that may surpass static benchmarks." The word "human" appears
+  in that abstract once, as a comparison baseline. **And the 1.91x bias
+  finding is corrected by an adversarial objective, not by human
+  judgment** — a fact the CEO stated backwards, in writing, inside the
+  very dispatch brief asking the seat to attack the claim.
+- **`decision-guard`, on the market shape:** the anchors are ~100-item
+  off-the-shelf published datasets (RQGM Table 3), so marginal spend on
+  human judgment was near zero; the coding anchor is *executable tests*,
+  so the requirement is evaluator-independence rather than humanity; and
+  RQGM's own Limitations state they "intend to make our mechanism less
+  reliant on good anchor datasets." The paper that most resembles
+  human-oversight infrastructure, ANCHOR (`2606.06114`), **simulates its
+  human supervision with an LLM and says so first in its own
+  limitations.**
+
+The one genuine measurement of a human premium points elsewhere and is
+shrinking: SkillAxe (Microsoft, `2606.10546`) finds human-authored skills
+improve pass rates by 16.2 percentage points where LLM-authored skills
+give no measurable gain — but that measures humans **writing** memory, not
+**ranking** it, and SkillAxe's own contribution closes 47–67% of the gap
+without labels.
+
+**Recorded as rejected specifically so a later instance does not
+rediscover it as new**, which is this log's stated job for a discontinuous
+executive.
+
+**(d) TESTED: two findings about our own product survived the dead
+thesis.** Both re-derived by the CEO at source:
+
+- **`memory/bit.go:92`** — "Handle is an actor as observed: the trace
+  something left on a channel, **never a person**... deciding which
+  handles belong to the same actor is a separate, softer question that
+  this package **deliberately does not answer**." Anything premised on
+  attested human judgment runs straight into a designed-in refusal.
+  Nothing in the record distinguishes a vote Tyler cast from one a seat
+  cast while being the first user under D51.
+- **`memory/view.go:132`** — "By is the one voter whose upvote holds a bit
+  back." An upvote spares a bit from folding, so **the surface a person
+  votes from is shaped by what they already voted on: our votes are a
+  sample selected by earlier votes.** More votes tighten the selection
+  rather than loosening it. Partly mitigated, and the mitigation is
+  already decided: `tldr top` reads the whole record, not the shown view
+  (D58(a)). Nobody had named this property before; it is new, it is
+  independent of the rejected thesis, and it lands near D63(c)'s hazard
+  from a second direction — both concern what a person ever gets the
+  chance to judge.
+
+**(e) ASSERTED: D25 holds, and the null is measured rather than assumed.**
+Across ~800k characters of primary text from the five core papers,
+"vote" occurs zero times; "content-address" zero; "append-only" zero;
+"immutable" three, all incidental. Four arXiv queries (`abs:"agent
+memory" AND abs:"upvote"` → 0; `all:"vote" AND abs:"agent memory"` → 0;
+and two more) return nothing that duplicates the combination. **D56(i)'s
+trigger stays unfired.**
+
+Stated limit: the queries are phrase-matched, so a system calling it
+"preference aggregation" or "human ranking signal" would not surface.
+
+**(f) OPEN, and named as the next research unit rather than answered
+here: Trellis.** `2606.29823` (Meta Platforms + Daniel Abadi, UMD,
+2026-06-29) reaches D1's conclusion — you must be able to reconstruct any
+past state — from **training-data correctness** rather than legibility:
+"the numeric state that drove each decision … is mutated in place by
+later search, so replaying it from final state leaks future information
+into the example." Its mechanism is the opposite of ours: **mutable in
+place, plus a CDC changelog and AS-OF time-travel queries**, versus our
+immutable-and-derive.
+
+**D1's alternatives-considered does not contain it.** Two
+questions it forces, both open: whether our substrate has an argument
+against changelog-over-mutable that is not merely aesthetic (the likely
+one — a changelog is a mechanism a person cannot read, and legibility is
+the thesis — is not currently in the record), and that Trellis names a use
+for retention we never have: training-data correctness.
+
+Also logged as a near-neighbour, not a competitor: **TOKI**
+(`2606.06240`), bitemporal, "preserves the losing fact in an audit row" —
+D1's move in database clothing, no ranking.
+
+**(g) ASSERTED: an input to D63(c) — the literature gives a direction and
+no magnitude.** D63(c) is open: may tier two reorder the page the human
+has not judged? What the outside evidence supplies:
+
+- **1.91x is one point, not a floor and not typical.** RQGM's body says
+  1.42x–1.91x from one baseline reviewer, and immediately concedes
+  entanglement — the benchmark's accept/reject balance rewards lenient
+  reviewers, so bias and raw accuracy pull the same way. **RQGM's
+  Limitations also state no human grading of the generated papers or
+  proofs was performed at all**, so every acceptance figure in it is
+  agent-judged.
+- Other work gives bias *scores*, not ratios (Panickssery et al.
+  `2404.13076`; Wataoka et al. `2410.21819`, which finds the root cause is
+  perplexity — familiarity, not identity). The only other absolute
+  figure, BadScientist's 82.0% acceptance of fabricated papers
+  (`2510.18003`), measures something else.
+- **The mechanism finding is the useful part:** RQGM's cure for reviewer
+  self-preference worked *only because an evaluator-independent anchor
+  existed* to promote the harsher reviewer against. Mapped onto D63(c),
+  the outside evidence supports **keeping tier two out of the unjudged
+  band** — which is precisely the band where we have no anchor, since
+  `Own == 0` across most of the record.
+
+**This does not close D63(c).** D63(d)'s null hypothesis, still scheduled
+and unrun, is what closes it — D66(k) already says so. What changes is
+that the prior going in is no longer neutral.
+
+**(h) ASSERTED: research becomes a named watch, not a generic beat.**
+D58(k) made research a scheduled beat with one trigger ("before building
+any instrument, look for one that exists") but left *what to watch*
+generic. The founder's input this session: "I just want us to not ignore
+this self-improving agent space since it's moving fast and it's kinda the
+space we're operating in." A generic beat drifts toward whatever is
+convenient to search; a named one does not. **The self-improving-agent
+lineage is now an enumerated standing watch**, with the papers in (b) and
+(f) as its current front.
+
+Note against over-reading the founder's input: he explicitly did *not*
+direct the organisation of it — "You're CEO so as long as the board sees
+returns on investment I don't really care how you stay organized." This is
+a smell report from the shareholder, taken as input, not a spec.
+
+**(i) A method note worth more than its size.** `decision-guard` reports
+that `grep` silently returned zero matches against the extracted PDF
+text — **including for the word "the"** — and that it nearly filed
+"Selective Erasure does not appear in the paper" as a finding on that
+basis. Python's `str.count` showed 28 occurrences. The check that caught
+it was **grepping for a word already known to be present**. Every count in
+that sweep was produced in Python thereafter. This is the project's own
+red-green rule arriving in a new place: a tool returning zero is not
+evidence of absence until the tool has been shown able to return non-zero.
+
+**What would change any of this.** (a) moves if anyone re-runs DGM's
+no-archive ablation and gets near 50%. (c) is closed absent a measurement
+of a human *ranking* premium, as opposed to an authoring one. (e)'s null
+moves the day a phrase-match miss is found. (f) is open by construction
+and is the next research unit. (g) reverses with D63(d), in either
+direction.
+
+---
+
+## D68 — Four wrong figures in D67, one of them inside the clause about not trusting a figure
+
+**2026-08-16**
+
+**Status:** tested, per correction. Every figure below was re-derived at
+source by `decision-guard` during D67's publication gate, and the sharpest
+two again by the CEO before this entry was commissioned.
+
+**(a) TESTED: D67(i) attached a count to the wrong string, in the clause
+whose subject is exactly that.** D67(i) records that `grep` silently
+returned zero on extracted PDF text and that a false finding — "Selective
+Erasure does not appear in the paper" — was nearly filed on it, then says:
+"Python's `str.count` showed 28 occurrences." **28 is the count of the
+bare word "erasure."** Re-derived against `rqgm.txt`, the same file the
+sweep used, and confirmed twice:
+
+- `"Selective Erasure"`, case-sensitive: **0**
+- `"selective erasure"`, case-insensitive: **9**
+- `"erasure"`: **28**
+
+The sentence names the two-word phrase and attaches the one-word count to
+it, off by a factor of three. **The clause states the rule "a tool
+returning zero is not evidence of absence until the tool has been shown
+able to return non-zero," and carries a number nobody re-derived while
+stating it.** That is the whole finding, and it is worth more than the
+arithmetic: the lesson was written down correctly and violated in the
+sentence writing it.
+
+**(b) TESTED: the cause of the grep failure, which D67(i) recorded only as
+a symptom.** D67(i) says grep "silently returned zero... including for the
+word 'the'" and leaves it there. The mechanism, found by `decision-guard`
+and reproduced by the CEO:
+
+```
+$ grep -c 'the' 2505.22954.txt     # prints nothing, exit 1
+$ grep -ac 'the' 2505.22954.txt    # 815
+```
+
+**The extracted files contain NUL bytes, so GNU grep classifies them as
+binary and suppresses output** — two such bytes in `2505.22954.txt`, five
+in `rqgm.txt`, out of hundreds of thousands of characters. `grep -a` is the
+fix.
+
+**And the obvious check does not work**, which is worth more than the fix.
+The CEO's brief for this entry said "`file` first is the check." It is not:
+`file` reports these very files as `Unicode text, UTF-8 text`, because two
+NUL bytes in 800k do not change what the file mostly is. That sentence was
+caught before this entry was committed, by `archivist` running the check
+rather than repeating it — the third time in one checkpoint that a
+plausible sentence about verification failed the verification it described.
+What does work, confirmed against a known-clean control:
+`LC_ALL=C grep -qaP '\x00' <file>`. D67(i) recorded a symptom that reads like a mystery; the cause
+makes it a reusable rule, which is the difference between a war story and
+craft. Note it belongs in `.claude/craft/` as well, but this entry is
+where it is adjudicated.
+
+**(c) TESTED: "the word 'human' appears in that abstract once" — it
+appears twice.** D67(c), arguing that RQGM is not about human judgment,
+says the word appears once in RQGM's abstract as a comparison baseline. It
+appears **twice**, both as comparison baselines:
+
+- "over-accepts AI-generated papers at up to 1.91× the **human** rate"
+- "discovers reviewers equally stringent on AI and **human** work"
+
+**The argument is untouched** — both uses are baselines, neither makes
+RQGM a human-judgment system, and D67(c)'s rejection of the anchor thesis
+stands unchanged. Only the count was wrong. Recorded because a count is
+the kind of claim a stranger settles in one command, and D67 will be
+quoted outward more than most entries.
+
+**(d) TESTED: D67(a)'s summary names an ablation arm that does not
+exist.** D67(a) concludes: "retaining suboptimal material beats retaining
+only the best or only the latest." "Only the latest" is `DGM w/o Open-
+ended exploration` (23.0%) and is right. **"Only the best" is not an arm
+of DGM's Table 1.** `DGM Greedy` retains the entire archive and *selects*
+greedily — the paper files it under "Ablation of parent **selection**."
+D67(a)'s own earlier sentence has this exactly right ("39.7%, archive
+kept, greedy selection") and the summary then contradicts it.
+
+**The correction is one word: *using* suboptimal material, not *retaining*
+it.** The 16.7-point figure and the underlying claim are unaffected — the
+comparison was always retention-with-greedy-selection against
+no-retention. What was wrong was the summary's description of the second
+arm.
+
+**(e) TESTED: D67(b) quotes the RSI survey's caveat against the survey's
+own meaning.** D67(b) says the survey "disqualifies its own headline
+figure in the same breath," quoting "the supplemental harvest is
+recency-biased by construction." The sentence continues into a
+parenthetical D67 stops just short of: "(growth statistics in Figure 6
+therefore use the seed corpus only)", and Figure 6's caption reads
+"**Seed-corpus** quarterly growth through 2026Q2."
+
+**The survey is guarding the figure, not disqualifying it.** D67(b)'s
+conclusion — that year-over-year growth is real and month-over-month is
+not accelerating — is unaffected, because it rests on the CEO's own arXiv
+API counts and not on the survey. What was wrong is the evidence-to-claim
+link: a paper was described as undermining itself when it was doing the
+opposite.
+
+**(f) ASSERTED: what this says about the checkpoint that produced it.**
+Four wrong figures in one entry, all four in an entry whose own subject
+includes the discipline of re-deriving figures, and **all four found by
+the publication gate rather than by the seat that wrote them or the CEO
+who commissioned them.** The gate is now the load-bearing check on the
+record's accuracy and not only on its confidentiality, which is not what
+D15 was written for.
+
+**Nothing currently runs a figure-verification pass on an entry before it
+is committed** — the pre-commit gate reads code, and `cmd/seam` reads
+claims about code. A prose entry's numbers are checked by nobody until
+publication.
+
+**What would change this.** (a)–(e) are settled against files that do not
+move. (f) changes when something checks an entry's figures before the
+commit rather than after.
+
+---
+
+## After D68
+
+D68 is the newest entry published here, and, as of this push, it is also the
 newest entry in the private record — there is nothing past it yet to
 withhold. That is a fact about this moment and not a standing one: the
 private record gains entries between pushes, so by the time you read this
@@ -4946,6 +5299,6 @@ the log has probably continued somewhere you cannot see.
 This paragraph exists because the two kinds of gap are not equally visible.
 A missing number in the middle of a numbered list announces itself — you can
 see that D8 is not there. A log that simply stops does not. Without this
-note, a record ending at D66 would read as though D66 were the last decision
+note, a record ending at D68 would read as though D68 were the last decision
 taken, rather than the last one published, and nothing else in this file
 would tell you otherwise.
