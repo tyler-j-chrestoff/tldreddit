@@ -95,22 +95,21 @@ func TestARecordSurvivesBeingHandedToAnotherProcess(t *testing.T) {
 			Short(back.Address()), Short(s.Address()))
 	}
 
-	// Reaching into the field, as reach_test.go does and for its reason: a
-	// Store has no enumeration on purpose, because nothing in the product walks
-	// the record except by following edges.
-	s.mu.RLock()
-	ids := slices.Sorted(maps.Keys(s.bits))
-	s.mu.RUnlock()
-	for _, id := range ids {
-		got, ok := back.Get(id)
+	// Through [Store.All], which is the enumeration a record has and this test
+	// wants: the question here is whether every bit that went onto the wire came
+	// off it, and that is asked of the whole store rather than of a view. (It
+	// used to reach into s.bits under a comment saying a Store had no enumeration
+	// on purpose. It has had one since `tldr top`, and the sentence outlived it.)
+	for b := range s.All() {
+		got, ok := back.Get(b.ID)
 		if !ok {
-			t.Errorf("the record read back does not hold %s", Short(id))
+			t.Errorf("the record read back does not hold %s", Short(b.ID))
 			continue
 		}
 		// Re-addressed here rather than trusting the loader's own check, so
 		// this test still fails if that check is removed.
-		if again := ID(got); again != id {
-			t.Errorf("bit %s came back addressing %s", Short(id), Short(again))
+		if again := ID(got); again != b.ID {
+			t.Errorf("bit %s came back addressing %s", Short(b.ID), Short(again))
 		}
 	}
 

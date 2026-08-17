@@ -201,6 +201,14 @@ walks that graph from the view and asserts every stored bit is discoverable
 (D1, D14). It is the test that caught us violating our own headline guarantee —
 see below.
 
+Read that claim strictly, because it is scoped: it asserts discoverability
+over the views a *single process* holds. Two terminals open on one record is a
+supported thing to do, and it was the case nothing checked — a second writer
+could permanently strand a vote, which D66 records and fixes. One residue of
+it is still open and is in `docs/DEBT.md`: where two sessions fold with
+different windows, the *event* of a fold can still strand, though every bit it
+absorbed stays discoverable through the surviving receipt.
+
 ## Reading the record back, ranked
 
 `ctrl+t` swaps the transcript for a ranked reading of the whole record — not of
@@ -512,8 +520,8 @@ killed process, and there is none.
 
 The decision log publishes D1, D2, D3, D4, D5, D6, D7, D11, D12, D13, D14, D18,
 D19, D24, D26, D27, D28, D30, D31, D32, D33, D34, D35, D36, D37, D38, D39, D40,
-D42, D49, D50, D51, D52, D53, D54, D55, D57, D58, D59, D60, D61 and D63 —
-forty-two entries. They are listed one by one rather than as a range on purpose: a
+D42, D49, D50, D51, D52, D53, D54, D55, D57, D58, D59, D60, D61, D63 and D66 —
+forty-three entries. They are listed one by one rather than as a range on purpose: a
 range would quietly enclose the ones that are withheld.
 Those are withheld per entry rather than by any cutoff — some commercial, some
 about how this tree gets published — and the numbering is left intact rather

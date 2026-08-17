@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"slices"
 	"testing"
 )
 
@@ -9,10 +8,15 @@ import (
 // would: follow every Prev, and follow every Absorbed on a receipt. It returns
 // the IDs found.
 //
-// This is the operational meaning of "permanently reachable" in D1. Content
-// addressing makes an ID *retrievable* by anyone already holding the hash;
-// only the edges make it *discoverable*. A bit nothing points at is a bit no
-// reader can get to, whatever the store still has filed under its address.
+// This is the operational meaning of "permanently reachable" in D1, and there
+// are three readings of it that a record can satisfy separately. Content
+// addressing makes a bit *retrievable* by anyone already holding its address.
+// [Store.All] makes the record *enumerable* by any process holding the whole
+// store — more than retrievable, since no address has to be known first, and
+// less than discoverable, since it comes with no starting point: a reader is
+// handed every bit and nothing that says which ones they were meant to begin
+// from. Only the edges make a bit *discoverable*, and D14 counts that one alone,
+// because a reader arrives holding a view rather than a hash or a store.
 //
 // Views, plural, since votes arrived. A vote lives in its own view and nothing
 // in the transcript points at one, so a reader holding both is the honest
@@ -89,19 +93,32 @@ func TestEveryStoredBitIsReachableFromTheView(t *testing.T) {
 		return
 	}
 
-	// Only to name the casualties. A Store has no enumeration on purpose —
-	// nothing in the product walks the record except by following edges, which
-	// is the whole point above — so the failure path reaches in rather than
-	// growing an API that exists for a test.
+	// Only to name the casualties, and this is the one place enumeration belongs
+	// in this test: an orphan is a bit the store enumerates and the walk did not
+	// reach, so naming one takes two of the three readings at once.
+	//
+	// [Store.All] exists and the product uses it — ranking has to see every bit
+	// rather than the ones a view is already showing. What it makes the record is
+	// enumerable, which D14 does not count, which is why the walk above follows
+	// Prev and Absorbed rather than asking All.
+	//
+	// What getting that wrong would cost is worth stating exactly, because it is
+	// not the obvious thing. This check would go on reddening either way — a
+	// manufactured orphan reddens it, measured. What stops being falsifiable is
+	// the *decision*: let enumeration count as reachability and an orphan is
+	// compliant, so this stays red-capable while testing nothing D14 requires — a
+	// preference with a t.Errorf attached. (Writing the walk itself over All
+	// would be the ordinary vacuity on top of that, D27's class, since every bit
+	// in the store is in All by construction.)
+	//
+	// All hands them back in address order, which is stable and is all a message
+	// printing hashes needs.
 	var orphans []string
-	s.mu.RLock()
-	for id := range s.bits {
-		if !found[id] {
-			orphans = append(orphans, Short(id))
+	for b := range s.All() {
+		if !found[b.ID] {
+			orphans = append(orphans, Short(b.ID))
 		}
 	}
-	s.mu.RUnlock()
-	slices.Sort(orphans)
 
 	t.Errorf("the record holds %d bits and the view reaches %d; %d orphaned: %v",
 		s.Len(), len(found), len(orphans), orphans)

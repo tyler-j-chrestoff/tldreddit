@@ -360,6 +360,12 @@ func TestSayingBesideAnOpenSessionReachesTheNextOneJustTheSame(t *testing.T) {
 // and opening the program un-folds the whole conversation. The "a fold is not
 // undone" row is the only thing in this repository that would say so.
 //
+// Both views, because both are written over. The rows about a ballot and about a
+// fold receipt are the ones that say the rule is not "utterances and nothing
+// else": each kind has its own destination and the receipt has its own refusal,
+// and each of those is a row here rather than a test of its own, which is what
+// keeps them off every claim that cites this one.
+//
 // Every want is written out by hand from the stated rule, not computed through
 // the function under test.
 func TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse(t *testing.T) {
@@ -378,54 +384,211 @@ func TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse(t *testing.T) {
 		})
 	}
 
+	// eight says eight things into a view and folds it, keeping three. It hands
+	// back the bits it said and the folded view, so a row can name the scar and
+	// the survivors without asking rejoin which is which.
+	eight := func(t *testing.T, s *memory.Store) (said []memory.Bit, folded memory.View, scar memory.Bit) {
+		t.Helper()
+
+		var shown memory.View
+		for i := range 8 {
+			var b memory.Bit
+			shown, b = shown.Add(s, memory.Bit{
+				At:      at(i),
+				From:    me,
+				Channel: "tui",
+				Payload: memory.Utterance{Text: fmt.Sprintf("bit %d", i)},
+				Prev:    shown.Head(),
+			})
+			said = append(said, b)
+		}
+
+		folded, ok := shown.Fold(s, 3, memory.Stay{})
+		if !ok {
+			t.Fatal("the fixture did not fold, so nothing here is behind a scar")
+		}
+		for _, b := range folded.Bits(s) {
+			if _, cold := b.Payload.(memory.Compaction); cold {
+				scar = b
+			}
+		}
+		if scar.ID == "" {
+			t.Fatal("the folded view holds no compaction, so this row has no receipt to reason about")
+		}
+		return said, folded, scar
+	}
+
+	// nested says twelve things in two folded generations, and hands back the
+	// bits with both scars. The outer scar's window holds the inner one, which is
+	// what makes Prev and Absorbed answer different questions about it: Prev names
+	// the inner scar and the four bits beside it, Absorbed names nine originals
+	// Prev never mentions.
+	nested := func(t *testing.T, s *memory.Store) (said []memory.Bit, inner, outer memory.Bit) {
+		t.Helper()
+
+		var shown memory.View
+		say := func(from, n int) {
+			for i := from; i < from+n; i++ {
+				var b memory.Bit
+				shown, b = shown.Add(s, memory.Bit{
+					At:      at(i),
+					From:    me,
+					Channel: "tui",
+					Payload: memory.Utterance{Text: fmt.Sprintf("bit %d", i)},
+					Prev:    shown.Head(),
+				})
+				said = append(said, b)
+			}
+		}
+		fold := func() memory.Bit {
+			folded, ok := shown.Fold(s, 3, memory.Stay{})
+			if !ok {
+				t.Fatal("the fixture did not fold, so there is only one generation here")
+			}
+			shown = folded
+
+			var scar memory.Bit
+			for _, b := range shown.Bits(s) {
+				if _, cold := b.Payload.(memory.Compaction); cold {
+					scar = b
+				}
+			}
+			return scar
+		}
+
+		// Four more between the folds, because a scar alone is a run of one and
+		// D32's size rule refuses to cool it.
+		say(0, 8)
+		inner = fold()
+		say(8, 4)
+		outer = fold()
+
+		if !slices.Contains(outer.Prev, inner.ID) {
+			t.Fatal("the outer scar's window does not hold the inner one, so these two rows are " +
+				"about a record this fixture did not build")
+		}
+		return said, inner, outer
+	}
+
+	// sameInstant says ten things, holds the sixth, and folds twice — and the two
+	// generations it leaves carry the same instant.
+	//
+	// The hold splits the first fold into two runs, so one generation mints two
+	// scars; the second fold, with the hold lapsed, takes both, and its window
+	// *ends* on the newer of them. A scar's At is the end of the span it covers,
+	// so the outer receipt and that inner one are stamped to the same nanosecond.
+	// Everything here is the surface's own fold rule — no hand-assembled bit is
+	// involved — which is the part worth insisting on: this is what a session
+	// where somebody voted actually writes.
+	sameInstant := func(t *testing.T, s *memory.Store) (said []memory.Bit, votes memory.View, inner, outer memory.Bit) {
+		t.Helper()
+
+		// "row" rather than "bit", which is the word every other fixture here
+		// uses, and it is not a style choice: the text decides the addresses, the
+		// addresses are the last tiebreak in the offer order, and this row is only
+		// a check of the tiebreak before it while they fall one particular way. The
+		// row's own guard says so if that changes.
+		var shown memory.View
+		for i := range 10 {
+			var b memory.Bit
+			shown, b = shown.Add(s, memory.Bit{
+				At:      at(i),
+				From:    me,
+				Channel: "tui",
+				Payload: memory.Utterance{Text: fmt.Sprintf("row %d", i)},
+				Prev:    shown.Head(),
+			})
+			said = append(said, b)
+		}
+		votes, _ = votes.Add(s, memory.Cast(at(10), me, memory.Up, said[5]))
+
+		split, ok := shown.Fold(s, 1, memory.Stay{By: me, For: time.Hour, Votes: votes})
+		if !ok {
+			t.Fatal("the held fold did nothing, so there is one generation here rather than two")
+		}
+		var scars []memory.Bit
+		for _, b := range split.Bits(s) {
+			if _, cold := b.Payload.(memory.Compaction); cold {
+				scars = append(scars, b)
+			}
+		}
+		if len(scars) != 2 {
+			t.Fatalf("the held fold left %d scars, want 2 — the hold is what splits the window, and "+
+				"without the split there is no pair sharing an instant", len(scars))
+		}
+		inner = scars[1]
+
+		// The hold lapsed: [memory.Stay] zero, so the whole of what is left cools
+		// into one receipt over both scars.
+		folded, ok := split.Fold(s, 1, memory.Stay{})
+		if !ok {
+			t.Fatal("the second fold did nothing, so nothing here stands for the inner receipts")
+		}
+		for _, b := range folded.Bits(s) {
+			if _, cold := b.Payload.(memory.Compaction); cold {
+				outer = b
+			}
+		}
+
+		if !slices.Contains(outer.Prev, inner.ID) {
+			t.Fatal("the outer receipt's window does not hold the newer inner one, so this fixture " +
+				"is not the arrangement these rows are about")
+		}
+		if !outer.At.Equal(inner.At) {
+			t.Fatalf("the two receipts are stamped %s and %s — this fixture exists because they "+
+				"collide, and an instant order settles a pair that does not", outer.At, inner.At)
+		}
+		return said, votes, inner, outer
+	}
+
 	tests := []struct {
 		name string
 
-		// build returns the record as it came off the file, and the transcript
-		// the rule says a load owes back.
-		build func(t *testing.T) (record, memory.View)
+		// build returns the record as it came off the file, and the two views the
+		// rule says a load owes back.
+		build func(t *testing.T) (off, owed record)
 	}{
 		{
 			name: "a record nobody wrote beside comes back untouched",
-			build: func(t *testing.T) (record, memory.View) {
+			build: func(t *testing.T) (record, record) {
 				t.Helper()
 				s := memory.NewStore()
 				a, b, c := said(s, 0, "one"), said(s, 1, "two"), said(s, 2, "three")
 				shown := memory.View{a.ID, b.ID, c.ID}
-				return record{store: s, shown: shown}, memory.View{a.ID, b.ID, c.ID}
+				return record{store: s, shown: shown}, record{shown: memory.View{a.ID, b.ID, c.ID}}
 			},
 		},
 		{
 			name: "a stray lands between the rows it was said between",
-			build: func(t *testing.T) (record, memory.View) {
+			build: func(t *testing.T) (record, record) {
 				t.Helper()
 				s := memory.NewStore()
 				a, b, c := said(s, 0, "one"), said(s, 2, "three"), said(s, 4, "five")
 				stray := said(s, 3, "said beside a session, after three and before five")
 				return record{store: s, shown: memory.View{a.ID, b.ID, c.ID}},
-					memory.View{a.ID, b.ID, stray.ID, c.ID}
+					record{shown: memory.View{a.ID, b.ID, stray.ID, c.ID}}
 			},
 		},
 		{
 			name: "a stray older than everything shown goes first",
-			build: func(t *testing.T) (record, memory.View) {
+			build: func(t *testing.T) (record, record) {
 				t.Helper()
 				s := memory.NewStore()
 				a, b := said(s, 4, "five"), said(s, 6, "seven")
 				stray := said(s, 1, "said before either of them")
 				return record{store: s, shown: memory.View{a.ID, b.ID}},
-					memory.View{stray.ID, a.ID, b.ID}
+					record{shown: memory.View{stray.ID, a.ID, b.ID}}
 			},
 		},
 		{
 			name: "a stray newer than everything shown goes last",
-			build: func(t *testing.T) (record, memory.View) {
+			build: func(t *testing.T) (record, record) {
 				t.Helper()
 				s := memory.NewStore()
 				a, b := said(s, 0, "one"), said(s, 1, "two")
 				stray := said(s, 9, "said after the session stopped writing")
 				return record{store: s, shown: memory.View{a.ID, b.ID}},
-					memory.View{a.ID, b.ID, stray.ID}
+					record{shown: memory.View{a.ID, b.ID, stray.ID}}
 			},
 		},
 		{
@@ -436,19 +599,19 @@ func TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse(t *testing.T) {
 			// against a version with no sort at all; four leaves it one in
 			// twenty-four.
 			name: "strays keep the order they were said in",
-			build: func(t *testing.T) (record, memory.View) {
+			build: func(t *testing.T) (record, record) {
 				t.Helper()
 				s := memory.NewStore()
 				a := said(s, 0, "one")
 				w, x := said(s, 2, "then this"), said(s, 3, "and then this")
 				y, z := said(s, 4, "and this"), said(s, 5, "and finally this")
 				return record{store: s, shown: memory.View{a.ID}},
-					memory.View{a.ID, w.ID, x.ID, y.ID, z.ID}
+					record{shown: memory.View{a.ID, w.ID, x.ID, y.ID, z.ID}}
 			},
 		},
 		{
 			name: "a fold is not undone",
-			build: func(t *testing.T) (record, memory.View) {
+			build: func(t *testing.T) (record, record) {
 				t.Helper()
 				s := memory.NewStore()
 
@@ -485,45 +648,277 @@ func TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse(t *testing.T) {
 					t.Fatalf("%d bits are shown out of %d in the store, so no bit is only reachable "+
 						"through a scar and this row asserts nothing", len(shown), s.Len())
 				}
-				return record{store: s, shown: shown}, slices.Clone(shown)
+				return record{store: s, shown: shown}, record{shown: slices.Clone(shown)}
 			},
 		},
 		{
 			name: "a stray beside a fold lands without disturbing it",
-			build: func(t *testing.T) (record, memory.View) {
+			build: func(t *testing.T) (record, record) {
+				t.Helper()
+				s := memory.NewStore()
+				_, shown, _ := eight(t, s)
+
+				stray := said(s, 20, "said long after the fold")
+				return record{store: s, shown: shown},
+					record{shown: append(slices.Clone(shown), stray.ID)}
+			},
+		},
+		{
+			// The other writer folded and this one never saw any of it, which is
+			// the only arrangement in which a receipt has a place to go: put the
+			// eight originals back instead and the load has un-folded somebody
+			// else's fold, which is the same catastrophe as the row above with
+			// the blame moved.
+			name: "a fold receipt nothing shows comes back, and its material stays behind it",
+			build: func(t *testing.T) (record, record) {
+				t.Helper()
+				s := memory.NewStore()
+				said8, _, scar := eight(t, s)
+
+				later := said(s, 20, "said by the writer whose transcript reached the file")
+				return record{store: s, shown: memory.View{later.ID}},
+					record{shown: memory.View{scar.ID, said8[5].ID, said8[6].ID, said8[7].ID, later.ID}}
+			},
+		},
+		{
+			// The named hole, kept as a row so it is a measured limit rather than
+			// a paragraph. The transcript that reached the file shows all eight
+			// originals, so the receipt over five of them has nowhere to stand: a
+			// view never holds both a scar and a bit it names, and this may insert
+			// but may not rearrange. It stays stranded, and docs/DEBT.md says so.
+			name: "a fold receipt the transcript already shows is left where it is",
+			build: func(t *testing.T) (record, record) {
 				t.Helper()
 				s := memory.NewStore()
 
-				var shown memory.View
-				for i := range 8 {
-					shown, _ = shown.Add(s, memory.Bit{
-						At:      at(i),
-						From:    me,
-						Channel: "tui",
-						Payload: memory.Utterance{Text: fmt.Sprintf("bit %d", i)},
-						Prev:    shown.Head(),
-					})
+				var unfolded memory.View
+				said8, _, _ := eight(t, s)
+				for _, b := range said8 {
+					unfolded = append(unfolded, b.ID)
 				}
-				folded, ok := shown.Fold(s, 3, memory.Stay{})
-				if !ok {
-					t.Fatal("the fixture did not fold, so nothing here is behind a scar")
-				}
-				shown = folded
+				return record{store: s, shown: unfolded}, record{shown: slices.Clone(unfolded)}
+			},
+		},
+		{
+			// Two stranded receipts, one standing for the other, and only the
+			// outer one belongs on screen: it accounts for everything the inner
+			// one does. Which is reinstated is decided entirely by the order they
+			// are offered in — oldest first puts the inner one back and then
+			// refuses the outer for naming it, leaving the generation that stands
+			// for the whole conversation stranded and the transcript one fold
+			// shallower than the record.
+			name: "nested fold receipts come back as the outer one",
+			build: func(t *testing.T) (record, record) {
+				t.Helper()
+				s := memory.NewStore()
+				said12, _, outer := nested(t, s)
 
-				stray := said(s, 20, "said long after the fold")
-				return record{store: s, shown: shown}, append(slices.Clone(shown), stray.ID)
+				later := said(s, 20, "said by the writer whose transcript reached the file")
+				return record{store: s, shown: memory.View{later.ID}},
+					record{shown: memory.View{
+						outer.ID, said12[9].ID, said12[10].ID, said12[11].ID, later.ID,
+					}}
+			},
+		},
+		{
+			// The refusal reached through Absorbed rather than through Prev, which
+			// is the half the single-generation row above cannot exercise. The
+			// transcript shows bit 0, which the outer receipt stands for at two
+			// removes: it is in that receipt's Absorbed and in neither receipt's
+			// Prev but the inner one's.
+			name: "a fold receipt is refused for material it absorbed two generations down",
+			build: func(t *testing.T) (record, record) {
+				t.Helper()
+				s := memory.NewStore()
+				said12, _, _ := nested(t, s)
+
+				later := said(s, 20, "said by the writer whose transcript reached the file")
+				owed := memory.View{said12[0].ID}
+				for _, b := range said12[1:] {
+					owed = append(owed, b.ID)
+				}
+				return record{store: s, shown: memory.View{said12[0].ID, later.ID}},
+					record{shown: append(owed, later.ID)}
+			},
+		},
+		{
+			// Two receipts of one generation stamped to the same nanosecond, and
+			// only the outer one belongs on screen: it accounts for everything the
+			// inner one does. Which comes back is decided entirely by the order they
+			// are offered in, and an instant order cannot decide it — which is what
+			// [outermost] sorts by count for. Measured over twenty records differing
+			// only in what their bits said, fourteen stranded the outer receipt
+			// before it did.
+			//
+			// This is the row that reddens when the count is dropped from that
+			// sort, and the only one: the older nested row above it passes either
+			// way, because its two generations are eight minutes apart.
+			name: "two receipts sharing an instant come back as the outer one",
+			build: func(t *testing.T) (record, record) {
+				t.Helper()
+				s := memory.NewStore()
+				said10, votes, inner, outer := sameInstant(t, s)
+
+				// This row checks the count tiebreak only while the address order
+				// would get it wrong on its own, and an address moves whenever
+				// anything above changes what a bit says. So it is asserted rather
+				// than assumed, and the failure says what to do about it.
+				if inner.ID <= outer.ID {
+					t.Fatalf("the inner receipt %s sorts before the outer %s, so an order that ends "+
+						"at the address already offers the outer one first and this row cannot tell "+
+						"whether anything else does — change what a bit above says until it does not",
+						memory.Short(inner.ID), memory.Short(outer.ID))
+				}
+
+				later := said(s, 20, "said by the writer whose transcript reached the file")
+				return record{store: s, shown: memory.View{later.ID}, votes: votes},
+					record{
+						shown: memory.View{outer.ID, said10[9].ID, later.ID},
+						votes: slices.Clone(votes),
+					}
+			},
+		},
+		{
+			// The one arrangement [outermost] cannot order, kept as a row so the
+			// boundary of its argument is executed rather than described. A receipt
+			// over a window of *one* carries the same instant and the same count as
+			// the receipt beneath it, so the address decides, and here it decides
+			// against the outer one. No fold builds this — D32's size rule refuses a
+			// run of one — so it is [memory.Cool] called by hand, which is to say a
+			// file somebody assembled.
+			//
+			// What the row holds up is the other half, and that half has no
+			// exceptions: the two never *both* come back. A view naming a scar beside
+			// a scar it stands for would print one conversation twice and break the
+			// invariant the fold's own sparing rule rests on. Two lines are what
+			// keep it, and this is the only place in the module either of them is
+			// exercised: [record.rejoin]'s `drawn[b.ID] = true`, and the Prev half of
+			// [summarises], which is the half that sees a window holding nothing but
+			// an older receipt. Delete either and both come back.
+			name: "a receipt standing for one receipt is ordered by nothing, and only one of them comes back",
+			build: func(t *testing.T) (record, record) {
+				t.Helper()
+				s := memory.NewStore()
+				a, b := said(s, 0, "said once"), said(s, 1, "said twice")
+				c := said(s, 2, "said while nobody was folding")
+				inner := s.Put(memory.Cool([]memory.Bit{a, b}))
+				outer := s.Put(memory.Cool([]memory.Bit{inner}))
+
+				if !outer.At.Equal(inner.At) || standsFor(outer) != standsFor(inner) {
+					t.Fatalf("the pair is %s/%d and %s/%d — this row exists because a window of one "+
+						"leaves both fields identical, and something has made them separable",
+						outer.At, standsFor(outer), inner.At, standsFor(inner))
+				}
+				if inner.ID <= outer.ID {
+					t.Fatalf("the inner receipt %s sorts before the outer %s, so the outer one is "+
+						"offered first and comes back on its own merits — this row is then about the "+
+						"case it was written to leave out",
+						memory.Short(inner.ID), memory.Short(outer.ID))
+				}
+
+				later := said(s, 20, "said by the writer whose transcript reached the file")
+				return record{store: s, shown: memory.View{later.ID}},
+					record{shown: memory.View{inner.ID, c.ID, later.ID}}
+			},
+		},
+		{
+			name: "a ballot nothing names goes into the vote view",
+			build: func(t *testing.T) (record, record) {
+				t.Helper()
+				s := memory.NewStore()
+				a, b := said(s, 0, "one"), said(s, 1, "two")
+				up := s.Put(memory.Cast(at(2), me, memory.Up, a))
+				return record{store: s, shown: memory.View{a.ID, b.ID}},
+					record{shown: memory.View{a.ID, b.ID}, votes: memory.View{up.ID}}
+			},
+		},
+		{
+			// Four rather than two, for the reason the transcript row above gives:
+			// without the sort these come back in [memory.Store.All]'s address
+			// order, which is one fixed permutation of these particular bits, so two
+			// ballots would leave the row one coin flip away from passing against a
+			// version with no sort at all.
+			name: "stray ballots come back in the order they were cast",
+			build: func(t *testing.T) (record, record) {
+				t.Helper()
+				s := memory.NewStore()
+				a, b := said(s, 0, "one"), said(s, 1, "two")
+				c, d := said(s, 2, "three"), said(s, 3, "four")
+				w := s.Put(memory.Cast(at(10), me, memory.Up, a))
+				x := s.Put(memory.Cast(at(11), me, memory.Down, b))
+				y := s.Put(memory.Cast(at(12), me, memory.Up, c))
+				z := s.Put(memory.Cast(at(13), me, memory.Up, d))
+				return record{store: s, shown: memory.View{a.ID, b.ID, c.ID, d.ID}},
+					record{
+						shown: memory.View{a.ID, b.ID, c.ID, d.ID},
+						votes: memory.View{w.ID, x.ID, y.ID, z.ID},
+					}
+			},
+		},
+		{
+			// One voter, one target, one instant, two directions — which
+			// [memory.Cast] cannot mint, because it reads the clock, so this is a
+			// hand-assembled file or a fixture and nothing else. The row pins which
+			// side of the tie a stray lands on, and that is not a detail:
+			// [memory.Tally] settles an exact tie by the later position, so the vote
+			// put back here is the one that ends up standing. The incumbent keeps its
+			// place and loses the ballot, and "keeps its place" is the sentence that
+			// reads as though it meant the opposite.
+			//
+			// What the tally then says is [memory.Tally]'s claim and not this one:
+			// TestTallyBreaksAnInstantTieByViewOrder is where that lives.
+			name: "a ballot tying with one already in the view lands after it",
+			build: func(t *testing.T) (record, record) {
+				t.Helper()
+				s := memory.NewStore()
+				a := said(s, 0, "one")
+				held := s.Put(memory.Cast(at(2), me, memory.Up, a))
+				stray := s.Put(memory.Cast(at(2), me, memory.Down, a))
+				return record{store: s, shown: memory.View{a.ID}, votes: memory.View{held.ID}},
+					record{shown: memory.View{a.ID}, votes: memory.View{held.ID, stray.ID}}
+			},
+		},
+		{
+			// A vote following two bits votes on neither, and [memory.Tally]
+			// panics on one rather than guess. [memory.Cast] cannot build it, so
+			// this is a hand-assembled file — and there the right answer is to
+			// leave the bit stranded rather than trade it for a panic on the
+			// reader's first frame.
+			name: "a ballot naming two targets is left alone",
+			build: func(t *testing.T) (record, record) {
+				t.Helper()
+				s := memory.NewStore()
+				a, b := said(s, 0, "one"), said(s, 1, "two")
+				up := s.Put(memory.Cast(at(2), me, memory.Up, a))
+				s.Put(memory.Bit{
+					At:      at(3),
+					From:    me,
+					Channel: "tui",
+					Payload: up.Payload,
+					Prev:    []string{a.ID, b.ID},
+				})
+				return record{store: s, shown: memory.View{a.ID, b.ID}},
+					record{shown: memory.View{a.ID, b.ID}, votes: memory.View{up.ID}}
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rec, want := tt.build(t)
+			rec, owed := tt.build(t)
 			was := slices.Clone(rec.shown)
 
 			got := rec.rejoin()
-			if !slices.Equal(got.shown, want) {
-				t.Errorf("%s came back as %v, want %v", shownName, shorten(got.shown), shorten(want))
+			for _, v := range []struct {
+				name      string
+				got, want memory.View
+			}{
+				{shownName, got.shown, owed.shown},
+				{votesName, got.votes, owed.votes},
+			} {
+				if !slices.Equal(v.got, v.want) {
+					t.Errorf("%s came back as %v, want %v", v.name, shorten(v.got), shorten(v.want))
+				}
 			}
 
 			// Insertion and never rearrangement: whatever the view already named
@@ -538,6 +933,192 @@ func TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Two writers over one file leave nothing on the record that no view reaches.
+//
+// This is D14 asked of a *file* rather than of one process's memory, and that is
+// the whole reason it is here. memory/reach_test.go walks a store against the
+// views the same process just built, and tui asks the same question of a model it
+// is holding; neither can see the way a bit actually strands, which is that one
+// writer's two views get written over another's on the way to disk.
+//
+// The construction needs no exotic file. [record.absorb] takes in the other
+// writer's *store* and deliberately never its views, so everything that writer
+// put in a view of its own — a ballot in the vote view, a scar minted by a fold —
+// arrives in the store named by nothing. Nothing later points at either, because
+// the edges run backwards: a vote's Prev names the bit it votes on, and a fold
+// puts its scar where the run it replaced was, which is behind the head, so even
+// the next thing said points past it.
+//
+// The second writer opens on a record that does not exist yet, which is what
+// leaves it holding none of the first writer's material. That matters for the
+// scar and is stated in [record.rejoin]: a fold receipt can only be put back
+// where the transcript does not already show what it stands for.
+//
+// Both halves of the walk are load-bearing here and the fixture proves it rather
+// than claiming it: the ballot is reachable only through the vote view, and the
+// eight utterances the fold took are reachable only through the scar's Absorbed.
+func TestNothingTheRecordHoldsIsStrandedByTwoWriters(t *testing.T) {
+	at := func(m int) time.Time {
+		return time.Date(2026, 8, 16, 9, 0, 0, 0, time.UTC).Add(time.Duration(m) * time.Minute)
+	}
+
+	path := filepath.Join(t.TempDir(), "record")
+
+	// Open first and save last. Its views are the ones the file ends up carrying,
+	// which is what makes the other writer's two views the casualties.
+	beside, err := load(path)
+	if err != nil {
+		t.Fatalf("the second writer's load: %v", err)
+	}
+
+	first := record{store: memory.NewStore()}
+	var said []memory.Bit
+	for i := range 8 {
+		var b memory.Bit
+		first.shown, b = first.shown.Add(first.store, memory.Bit{
+			At:      at(i),
+			From:    me,
+			Channel: "tui",
+			Payload: memory.Utterance{Text: fmt.Sprintf("bit %d", i)},
+			Prev:    first.shown.Head(),
+		})
+		said = append(said, b)
+	}
+	folded, ok := first.shown.Fold(first.store, 3, memory.Stay{})
+	if !ok {
+		t.Fatal("the first writer did not fold, so there is no fold receipt to strand")
+	}
+	first.shown = folded
+
+	var ballot memory.Bit
+	first.votes, ballot = first.votes.Add(first.store,
+		memory.Cast(at(9), me, memory.Up, said[7]))
+
+	if err := first.save(path); err != nil {
+		t.Fatalf("the first writer's checkpoint: %v", err)
+	}
+
+	// The scar is whatever the fold minted, found rather than assumed, so this
+	// still names the right bit if the cut moves.
+	var scar memory.Bit
+	for _, b := range first.shown.Bits(first.store) {
+		if _, cold := b.Payload.(memory.Compaction); cold {
+			scar = b
+		}
+	}
+	if scar.ID == "" {
+		t.Fatal("the folded view holds no compaction, so this test has no receipt to look for")
+	}
+
+	// One ordinary change, and the save behind it writes both of this writer's
+	// views over both of the other's.
+	beside.shown, _ = beside.shown.Add(beside.store, memory.Bit{
+		At:      at(10),
+		From:    memory.Handle{Ref: "them", Display: "them"},
+		Channel: "tui",
+		Payload: memory.Utterance{Text: "said in the session that opened first and saved last"},
+		Prev:    beside.shown.Head(),
+	})
+	if slices.Contains(beside.shown, scar.ID) || slices.Contains(beside.votes, ballot.ID) {
+		t.Fatal("the second writer already holds the other's views, so nothing here is overwritten " +
+			"and this test asserts nothing")
+	}
+	if err := beside.save(path); err != nil {
+		t.Fatalf("the second writer's save: %v", err)
+	}
+
+	back, err := load(path)
+	if err != nil {
+		t.Fatalf("the record does not load after both writers: %v", err)
+	}
+	for _, want := range []struct {
+		what string
+		id   string
+	}{
+		{"the ballot", ballot.ID},
+		{"the fold receipt", scar.ID},
+	} {
+		if _, ok := back.store.Get(want.id); !ok {
+			t.Fatalf("%s (%s) is not on the record at all, so what this test is about did not happen",
+				want.what, memory.Short(want.id))
+		}
+	}
+
+	if lost := stranded(t, back); len(lost) > 0 {
+		t.Errorf("the record holds %d bits and the two views reach %d; %d stranded:\n%s",
+			back.store.Len(), back.store.Len()-len(lost), len(lost), strings.Join(lost, "\n"))
+	}
+}
+
+// stranded is D14's walk over a whole record: start from both views, follow Prev
+// and Absorbed for as far as they go, and report every bit the walk never
+// reached, named by what it is.
+//
+// Deliberately not [record.reaching], which is the same walk inside the thing
+// under test. A check that shares its traversal with the code it checks can only
+// ever agree with it — break the rule and both move together — so this is written
+// out here from D14's own sentence and from nothing in record.go.
+func stranded(t *testing.T, r record) []string {
+	t.Helper()
+
+	reached := map[string]bool{}
+	var walk func(id string)
+	walk = func(id string) {
+		if reached[id] {
+			return
+		}
+		b, ok := r.store.Get(id)
+		if !ok {
+			t.Fatalf("a view names %s, which the record does not hold", memory.Short(id))
+		}
+		reached[id] = true
+
+		for _, p := range b.Prev {
+			walk(p)
+		}
+		if c, cold := b.Payload.(memory.Compaction); cold {
+			for a := range c.Absorbed() {
+				walk(a)
+			}
+		}
+	}
+	for _, v := range []memory.View{r.shown, r.votes} {
+		for _, id := range v {
+			walk(id)
+		}
+	}
+
+	var out []string
+	for b := range r.store.All() {
+		if reached[b.ID] {
+			continue
+		}
+		out = append(out, fmt.Sprintf("  %s  %s by %s", memory.Short(b.ID), naming(b), b.From.Ref))
+	}
+	return out
+}
+
+// naming says what a bit is, in the words a person would use for it, because a
+// stranding report whose rows are all "a bit" says only that something is wrong.
+func naming(b memory.Bit) string {
+	switch p := b.Payload.(type) {
+	case memory.Utterance:
+		return "an utterance"
+	case memory.Vote:
+		way, on := "a downvote", "nothing"
+		if p.Dir() == memory.Up {
+			way = "an upvote"
+		}
+		if len(b.Prev) == 1 {
+			on = memory.Short(b.Prev[0])
+		}
+		return fmt.Sprintf("%s on %s", way, on)
+	case memory.Compaction:
+		return fmt.Sprintf("a fold receipt over %d bits", p.Count())
+	}
+	return "a bit of some other kind"
 }
 
 // shorten is a view as a failure message should print it: whole addresses are

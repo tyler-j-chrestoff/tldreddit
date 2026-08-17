@@ -37,13 +37,16 @@ import (
 // nicety, it is a crash in the next fold of a session somebody is in the middle
 // of. Asked for rather than spelled, so there is one statement of it.
 //
-// **It goes into the view, not only into the store.** A bit filed with nothing
-// naming it is reachable by nobody: the edges run backwards, so a new bit
-// pointing at the view's head is not discoverable *from* the view, and D14 is
-// explicit that reachable means discoverable rather than merely resolvable. In
-// the view it is the newest row, which is where the caret lands when the next
-// session opens the record ([tui.Load]), so what the last session said is the
-// first thing on screen and is drawn whole (D54(b)).
+// **It goes into the view, not only into the store.** The edges run backwards,
+// so a new bit pointing at the view's head is not discoverable *from* the view,
+// and D14 is explicit that reachable means discoverable rather than merely
+// retrievable. A bit in no view is still *enumerable* — `tldr top` walks the
+// whole store — and enumerable is a third thing D14 does not count: an
+// enumeration hands a reader every bit and no starting point, so it cannot say
+// which of them anybody was meant to begin from. In the view
+// it is the newest row, which is where the caret lands when the next session
+// opens the record ([tui.Load]), so what the last session said is the first
+// thing on screen and is drawn whole (D54(b)).
 //
 // **It takes the record's own present and does not compete with it.** At is a
 // wall clock here because this is a real occurrence and there is nothing else to

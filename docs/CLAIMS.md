@@ -873,12 +873,18 @@ that is the general escape rather than luck: it builds its records in memory and
 never touches a file, which is what keeps a unit test of a rule off the wire
 format's claims. Measured the same way.*
 
+*Trip five, one name, from the check that no bit strands across two writers:
+`TestNothingTheRecordHoldsIsStrandedByTwoWriters` saves twice and loads twice, so
+the frame is again what it reads a record through. The set is twenty-eight. The
+same escape held again for the rule's own table, which grew four rows in that unit
+and gained no citation anywhere, because a row is its parent's verdict.*
+
 ```seam
 id: record-frame-unclosed
 file: memory/wire.go
 find: \tsc.want(endMark)\n\tif sc.err != nil {
 after: \tif sc.err != nil {
-red: TestACountReadOneTooLowIsRefused, TestASingleFlippedBitIsAlwaysCaught, TestNoByteOfARealRecordCanBeFlippedUnnoticed, TestATruncatedStreamIsRefused, TestARecordAndItsViewsShareOneStream, TestASavedRecordComesBackWhole, TestAViewFromAnotherRecordIsFatal, TestAViewNamingAMissingBitIsFatal, TestAVoteViewOfSomethingElseIsFatal, TestEveryTruncationIsFatalAndNamesTheFile, TestNoSingleBitOfTheFileCanBeChangedQuietly, TestTheRecordSurvivesASaveThatFailed, TestAChangeThatCouldNotBeWrittenIsCarriedByTheNextOne, TestTheFileMatchesMemoryAfterEveryChange, TestABitSaidFromTheCommandLineFoldsLikeAnyOther, TestAReadingOfAnEmptyRecordSaysSo, TestNoCommandOnThisSurfaceCanCastAVote, TestSayPutsAnOrdinaryBitOnTheRecord, TestTheHeaderSaysHowMuchOfTheOrderAPersonDecided, TestTheMarkOnARowIsTheVoteThePersonCast, TestTheReadingKeepsTheShapeOfWhatWasSaid, TestTheRowLimitPrintsThatManyAndSaysWhenItCut, TestTopReadsTheRecordAndNotTheTranscript, TestARowNamesTheHandleTheRecordKeysOn, TestASaveWillNotReplaceARecordItCannotRead, TestTheWriterThatSavesSecondKeepsTheOthersBits, TestSayingBesideAnOpenSessionReachesTheNextOneJustTheSame
+red: TestACountReadOneTooLowIsRefused, TestASingleFlippedBitIsAlwaysCaught, TestNoByteOfARealRecordCanBeFlippedUnnoticed, TestATruncatedStreamIsRefused, TestARecordAndItsViewsShareOneStream, TestASavedRecordComesBackWhole, TestAViewFromAnotherRecordIsFatal, TestAViewNamingAMissingBitIsFatal, TestAVoteViewOfSomethingElseIsFatal, TestEveryTruncationIsFatalAndNamesTheFile, TestNoSingleBitOfTheFileCanBeChangedQuietly, TestTheRecordSurvivesASaveThatFailed, TestAChangeThatCouldNotBeWrittenIsCarriedByTheNextOne, TestTheFileMatchesMemoryAfterEveryChange, TestABitSaidFromTheCommandLineFoldsLikeAnyOther, TestAReadingOfAnEmptyRecordSaysSo, TestNoCommandOnThisSurfaceCanCastAVote, TestSayPutsAnOrdinaryBitOnTheRecord, TestTheHeaderSaysHowMuchOfTheOrderAPersonDecided, TestTheMarkOnARowIsTheVoteThePersonCast, TestTheReadingKeepsTheShapeOfWhatWasSaid, TestTheRowLimitPrintsThatManyAndSaysWhenItCut, TestTopReadsTheRecordAndNotTheTranscript, TestARowNamesTheHandleTheRecordKeysOn, TestASaveWillNotReplaceARecordItCannotRead, TestTheWriterThatSavesSecondKeepsTheOthersBits, TestSayingBesideAnOpenSessionReachesTheNextOneJustTheSame, TestNothingTheRecordHoldsIsStrandedByTwoWriters
 sole: true
 ```
 
@@ -1119,6 +1125,20 @@ because at least one schedule stops stranding anything a hold is holding. Two
 names for one mutation and they are not a second witness of the same fact: one
 says the numbers moved, the other says the sweep stopped being able to measure.
 
+**The twelfth was already true when it was found, which makes it a stale
+citation rather than a trip.** `TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse`
+(`cmd/tldr`) merges a stray into a transcript by instant, and its *a stray beside
+a fold lands without disturbing it* row folds first: stamp the scar `time.Now()`
+and it becomes the newest instant in the view, so the stray no longer lands last
+and the hand-written want is wrong. Measured 3 of 3 red against `HEAD` —
+`git archive HEAD | tar -x -C $S`, apply this block's own `after`, then
+`go test ./cmd/tldr/ -run TestALoadPutsAStray -v`. So this claim was `over-red`
+before the unit that noticed it, which is the same shape as the eighth above and
+found the same way: by running every block rather than the ones a change looks
+like it touches. The rule two paragraphs up needs widening — **any new check
+anywhere that folds and then names an address or an order is a citation on this
+claim**, not only one in `memory/`.
+
 Kept as a citation rather than repaired in the fixture, and the direction of
 that choice is the point: making the fixture's date relative to now would make
 the check *stop* noticing a `Cool` that reads a clock, which is weakening a
@@ -1132,7 +1152,7 @@ id: cool-reads-the-clock
 file: memory/cool.go
 find: \t\tAt:      c.to,
 after: \t\tAt:      time.Now(),
-red: TestCoolIsDeterministic, TestFoldOfTheSameWindowCollapses, TestASplitFoldLeavesTheViewInTheOrderThingsHappened, TestConcurrentFoldsAgreeWithOneSequentialRun, TestTheStreamFramingIsPinned, TestAHeldScarSparesOnlyItself, TestAHoldSparesOnlyItselfWhenWhatItNamesHasGone, TestTheClockReadsTheSameWhoeverOpensTheRecord, TestSparingAnswersAboutTheViewItIsAsked, TestTheStrandingSweepReproducesItsFrozenTable, TestTheStrandingSweepCanReportEitherAnswer
+red: TestCoolIsDeterministic, TestFoldOfTheSameWindowCollapses, TestASplitFoldLeavesTheViewInTheOrderThingsHappened, TestConcurrentFoldsAgreeWithOneSequentialRun, TestTheStreamFramingIsPinned, TestAHeldScarSparesOnlyItself, TestAHoldSparesOnlyItselfWhenWhatItNamesHasGone, TestTheClockReadsTheSameWhoeverOpensTheRecord, TestSparingAnswersAboutTheViewItIsAsked, TestTheStrandingSweepReproducesItsFrozenTable, TestTheStrandingSweepCanReportEitherAnswer, TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse
 sole: true
 ```
 
@@ -1557,6 +1577,11 @@ merge, `TestSayingBesideAnOpenSessionReachesTheNextOneJustTheSame` never gets pa
 its own words. It is here because `sole: true` is a set assertion and it is in the
 set, not because it holds anything up that was not already held.*
 
+*A fourth name joined the same way and is not a fourth witness either:
+`TestNothingTheRecordHoldsIsStrandedByTwoWriters` walks both views of the file
+two writers left behind, and without the merge one writer's bits are not on the
+record to be walked. Measured, not predicted.*
+
 What neither buys, and the code says so where it happens: this is not a lock. The
 window between the read and the rename is milliseconds rather than a session, and
 two saves genuinely in flight can still lose one. One process cannot produce that
@@ -1567,11 +1592,11 @@ id: record-a-save-that-does-not-erase
 file: cmd/tldr/record.go
 find: \tif err := r.absorb(path); err != nil {\n\t\treturn fmt.Errorf("reading %s before replacing it: %w", path, err)\n\t}\n\treturn atomically(path, r.encode)
 after: \treturn atomically(path, r.encode)
-red: TestTheWriterThatSavesSecondKeepsTheOthersBits, TestASaveWillNotReplaceARecordItCannotRead, TestSayingBesideAnOpenSessionReachesTheNextOneJustTheSame
+red: TestTheWriterThatSavesSecondKeepsTheOthersBits, TestASaveWillNotReplaceARecordItCannotRead, TestSayingBesideAnOpenSessionReachesTheNextOneJustTheSame, TestNothingTheRecordHoldsIsStrandedByTwoWriters
 sole: true
 ```
 
-## The transcript accounts for every utterance the record holds
+## Both views together account for every bit the record holds
 
 `tldr say` writes a bit and puts it in the transcript on the file. A session that
 is open holds its own transcript for the life of the process and writes it over
@@ -1581,10 +1606,14 @@ command put it on the next session's first screen, in the fold window and in wha
 the persona is told. One command, two outcomes, selected by whether a terminal
 happened to be open somewhere else on the machine.
 
-It was never D1 or D14 failing: `tldr top` and the ranked surface both enumerate
-`Store.All` rather than a view, so the bit stayed reachable throughout. What was
-wrong is that the *transcript* disagreed with itself about the same act, and said
-so nowhere.
+The bit was never lost, and D14 was failing anyway; those are two questions and
+this paragraph used to answer only the first. `tldr top` and the ranked surface
+both enumerate `Store.All` rather than a view, so the record stayed *enumerable*
+throughout — which D14 does not count, an enumeration handing a reader every bit
+and no starting point. Reachable in D14's sense is discoverable by walking `Prev`
+and `Absorbed` out from a view, and a bit no view named had stopped being that,
+permanently, until `rejoin` was built. What was wrong on top of it is that the
+*transcript* disagreed with itself about the same act, and said so nowhere.
 
 `record.rejoin` is the repair, at load rather than on the save path — a save may
 not write a view the surface does not hold, or `tui.Save`'s whole sentence stops
@@ -1593,23 +1622,138 @@ in. Note which row of the cited check reddens: *with a session open* fails and
 *with nothing else running* passes, so the two-outcome shape is what the check is
 measuring rather than something about `say` in general.
 
+**`say` was one of three ways to strand and the first version of this rescued
+one of three.** Two sessions is enough: the one that saves second writes both of
+its views over both of the other's, so a ballot the other cast and a scar the
+other's fold minted each land in the store named by nothing, and nothing later
+points at either — a vote's Prev names the bit it votes on, and a fold puts its
+scar behind the head, so even the next thing said points past it. That is
+`TestNothingTheRecordHoldsIsStrandedByTwoWriters`, which drives the real
+`save`/`load` across two writers and then walks both views against `store.Len()`.
+It was written red and named both casualties before anything was fixed; the
+walk in it is written out from D14's sentence rather than shared with `rejoin`,
+so it cannot agree with the code by construction.
+
 `TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse` is the rule's own
-table, hand-built rather than driven through a file, and its "a fold is not
-undone" row is the one worth naming: `rejoin` asks whether a scar in the view
-absorbed a bit, and the obvious simplification is to ask only whether the view
-names it. Under that version every folded bit in every record is a stray and
-opening the program un-folds the conversation. Measured — dropping the `Absorbed`
-walk reddens that row plus `TestASavedRecordComesBackWhole`,
-`TestSayPutsAnOrdinaryBitOnTheRecord` and `TestTheFileMatchesMemoryAfterEveryChange`,
-which is why no `sole` is declared here: this mutation's blast radius is the whole
-transcript.
+table, hand-built rather than driven through a file, and three of its rows carry
+what nothing else states. *A fold is not undone*: `rejoin` asks whether a scar
+accounts for a bit, and the obvious simplification is to ask only whether the
+view names it — under that version every folded bit in every record is a stray
+and opening the program un-folds the conversation. *A fold receipt the transcript
+already shows is left where it is*: the receipt has nowhere to stand, since a
+view never holds both a scar and a bit it names, so that receipt stays stranded
+and `docs/DEBT.md` carries it rather than this claim pretending otherwise.
+*Nested fold receipts come back as the outer one*: the order receipts are offered
+in decides which of two generations is rescued, and taking them oldest first
+rescues the wrong one. Newest first is not enough on its own —
+`receipts-ordered-without-the-count` below is the claim that says so, and the
+`two receipts sharing an instant` row is what carries it.
+
+No `sole`, because the blast radius is the whole transcript and the useful
+citations are the three above. Measured rather than reasoned, in a scratch copy
+with one stub at a time and `go test ./... -count=1 | grep '^--- FAIL'`: dropping
+the ballot half reddens the table and the two-writer check; dropping the receipt
+half reddens the same two; dropping the guard that refuses an unplaceable receipt
+reddens the table alone; and dropping `Prev` from the walk reddens the table
+alone. Dropping `Absorbed` from the walk reddens **nothing**, which is a fact
+about D13 rather than about the walk and is written where the walk is.
+
+Three more mutations of `rejoin` were measured the same way at the same time,
+each reddening the table and nothing else in the module, and each is left as a
+sentence here rather than as a block of its own — the two that carry a decision
+got blocks below, and these three are the same behaviour cited from three angles:
+dropping `inOrder(cast)`, so stray ballots come back in `Store.All`'s address
+order rather than in the order they were cast; dropping `drawn[b.ID] = true`,
+which is what makes a receipt already put back count as material for the next
+receipt offered; and dropping the `Prev` half of `summarises`, which is the half
+that sees a window holding nothing but an older receipt. The last two are the
+same guarantee from either side — *the two never both come back* — and one row
+of the table reddens under either.
 
 ```seam
 id: a-transcript-that-drops-a-stray
 file: cmd/tldr/record.go
-find: func (r record) rejoin() record {\n\theld :=
-after: func (r record) rejoin() record {\n\tif true {\n\t\treturn r\n\t}\n\theld :=
-red: TestSayingBesideAnOpenSessionReachesTheNextOneJustTheSame, TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse, TestTheWriterThatSavesSecondKeepsTheOthersBits
+find: func (r record) rejoin() record {\n\treached :=
+after: func (r record) rejoin() record {\n\tif true {\n\t\treturn r\n\t}\n\treached :=
+red: TestSayingBesideAnOpenSessionReachesTheNextOneJustTheSame, TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse, TestTheWriterThatSavesSecondKeepsTheOthersBits, TestNothingTheRecordHoldsIsStrandedByTwoWriters
+```
+
+## An outer fold is offered its place before the fold it absorbed
+
+Of two stranded receipts where one stands for the other, only the outer one has a
+place to go: offer the inner one first and it goes back on screen, and the outer
+is then refused for naming it. The generation standing for the whole conversation
+is the one that strands, permanently, and the transcript comes back one fold
+shallower than the record.
+
+**Newest first does not order that pair, which is the whole of this claim.** A
+scar's `At` is the *end* of the span it covers (`memory/cool.go`), so an outer
+fold whose window ends on the inner one carries the same instant to the
+nanosecond — and that is not exotic, it is what the surface writes whenever a
+hold splits one fold into two runs and a later fold takes both. An instant order
+then falls through to the content address, and a hash decides which generation
+survives: measured over twenty records differing only in what their bits said,
+**fourteen stranded the outer receipt**. `Compaction.Count()` is what does order
+them, because it is the one field that grows strictly with nesting — `Cool` merges
+an absorbed compaction's own count rather than counting it as one bit, and D32's
+size rule refuses a window of one.
+
+The mutation drops the count from the sort and leaves the instant and the address,
+which is exactly the version that shipped for the length of one review. The older
+*nested fold receipts come back as the outer one* row cannot see it: that
+fixture's two generations are eight minutes apart, so the instant already settles
+them. The row that carries this is *two receipts sharing an instant come back as
+the outer one*, and it asserts the addresses fall the wrong way before it asserts
+anything else — a receipt's address moves whenever a fixture changes what a bit
+says, and this claim is only a claim while they do.
+
+That guard has a side effect worth knowing before it surprises somebody: **any
+mutation in this catalog that changes how a bit is addressed reddens that row
+too**, through the precondition rather than through the behaviour. Measured over
+all fifty blocks against `./cmd/tldr`, exactly one does —
+`canonical-drops-the-length-prefix`, which carries no `sole`, so it is a name in
+a list rather than a gate failure, and it is left out of that list because the
+row holds nothing up about length prefixes. The failure names itself when it
+happens: it is the guard's message, not an assertion about receipts.
+
+```seam
+id: receipts-ordered-without-the-count
+file: cmd/tldr/record.go
+find: \t\t\tcmp.Compare(standsFor(b), standsFor(a)),\n
+after:
+red: TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse
+sole: true
+```
+
+## A stray lands after every row it does not come later than
+
+`merge` inserts a stray before the first row later than it, so a row sharing its
+instant keeps its place and the stray lands after it. In the transcript that is
+only a position. In the vote view it decides a ballot: `standing`
+(`memory/vote.go`) keeps the **later** position on an exact tie, so the vote being
+put back beats the incumbent it ties with.
+
+Those two sentences are the reason this is a block rather than a line of prose.
+*Keeping a place* and *keeping a standing* read as the same thing and are
+opposite — the incumbent keeps the earlier position, and the earlier position is
+the losing one — and `cmd/tldr/record.go` and `docs/CODE.md` both asserted the
+opposite for a checkpoint before review re-derived it. The mutation is the
+alternative that was considered and refused: place a stray *before* an equal
+instant, so the incumbent wins. It was refused because `merge`'s rule is
+positional and both views take the same one, and merging the vote view by a
+second rule is harder to explain than either outcome (`docs/DEBT.md`).
+
+Reachable only from a hand-assembled file or a fixture — `memory.Cast` reads a
+nanosecond clock, so one voter voting twice on one bit in opposite directions
+inside one nanosecond is not something a writer here produces.
+
+```seam
+id: strays-merged-before-an-equal-instant
+file: cmd/tldr/record.go
+find: for i < len(rows) && !rows[i].At.After(b.At) {
+after: for i < len(rows) && rows[i].At.Before(b.At) {
+red: TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse
+sole: true
 ```
 
 ## A recorded message cannot draw a role boundary

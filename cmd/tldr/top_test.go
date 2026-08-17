@@ -32,6 +32,24 @@ type marked struct {
 
 func judged(t *testing.T) marked {
 	t.Helper()
+	return judging(t, 2)
+}
+
+// judging is [judged] with the number of ballots as a parameter, because a
+// record with one vote in it has to be *built* with one vote in it.
+//
+// Shortening the vote view of a two-vote fixture used to do, and no longer can:
+// a vote in the store that no view names is a stranded ballot, and
+// [record.rejoin] puts one back at load. Every reading here goes through a file,
+// so a fixture that drops a ballot from the view gets it back before the command
+// runs — which is the fix working, and would read from here as a header that
+// cannot count.
+func judging(t *testing.T, ballots int) marked {
+	t.Helper()
+
+	if ballots < 1 || ballots > 2 {
+		t.Fatalf("this fixture casts one vote or two, not %d", ballots)
+	}
 
 	s := memory.NewStore()
 	at := time.Date(2026, 8, 14, 9, 0, 0, 0, time.UTC)
@@ -66,7 +84,9 @@ func judged(t *testing.T) marked {
 
 	var votes memory.View
 	votes, _ = votes.Add(s, memory.Cast(at.Add(9*time.Minute), tui.Human(), memory.Up, said[0]))
-	votes, _ = votes.Add(s, memory.Cast(at.Add(10*time.Minute), tui.Human(), memory.Down, said[7]))
+	if ballots > 1 {
+		votes, _ = votes.Add(s, memory.Cast(at.Add(10*time.Minute), tui.Human(), memory.Down, said[7]))
+	}
 
 	if slices.Contains(shown, said[0].ID) {
 		t.Fatalf("%s is still on screen; the interesting case here is a vote on material the "+
@@ -280,10 +300,7 @@ func TestTheHeaderSaysHowMuchOfTheOrderAPersonDecided(t *testing.T) {
 		},
 		{
 			name: "one ballot reads as one",
-			with: func(m marked) marked {
-				m.rec.votes = m.rec.votes[:1]
-				return m
-			},
+			with: func(marked) marked { return judging(t, 1) },
 			want: []string{"1 ballot, 1 standing"},
 		},
 	}

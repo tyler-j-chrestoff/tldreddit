@@ -587,7 +587,13 @@ config and isn't tracked, so a fresh clone needs
   (D14). This is the test that caught the D12 orphan and that D13 fixes.
   `reachable` is now variadic over views: a vote view names nothing that
   points back at the vote, so a reader must hold both the transcript and the
-  vote view for reachability to hold (D34).
+  vote view for reachability to hold (D34). Its header states the three
+  readings of "permanently reachable" that a record can satisfy separately —
+  *retrievable* by address, *enumerable* through `Store.All`, *discoverable*
+  by following edges — and that D14 counts the third alone. What the failure
+  path enumerates is the casualties, and the comment there says why letting
+  enumeration count would make the *decision* unfalsifiable rather than this
+  check.
 - `tui/tui.go` — holds a `*memory.Store`, a `memory.View` (`shown`) and now a
   second, never-folded `memory.View` (`votes`; `memory.Tally` panics if it
   ever is folded). `send()` delegates to `utter(handle, memory.Utterance)`,
@@ -1006,31 +1012,70 @@ config and isn't tracked, so a fresh clone needs
   argument for accepting it a false choice. *This entry, and that doc comment,
   claimed the bit also reached the next session's screen; it did not, and
   `rejoin()` below is what makes it true.*
-- `cmd/tldr/record.go`'s `rejoin()` — **a load puts back into the transcript
-  every utterance the record holds that the transcript does not account for**, and
-  it closes a defect that was one command with two outcomes. `absorb()` merges the
-  store and never the views, correctly; but the session's checkpoint then writes
-  its own `shown` over the file, so a bit written by `tldr say` beside an open
-  session landed in the store and in *no view at all* — permanently, not until the
-  next session. With nothing else running the identical command put it in the next
-  session's transcript, fold window and persona context. The selector was whether a
-  terminal happened to be open elsewhere on the machine, which is invisible to
-  everybody. Not a D1 or D14 failure — `tldr top` and `ctrl+t` both walk
-  `Store.All()`, so it stayed reachable — but the transcript disagreed with itself
-  about one act and said so nowhere. Accounted-for means *named by the view, or
-  absorbed by a scar in it*; `Compaction.Absorbed()` merges across generations
-  (`memory/cool.go`), so a bit folded three times over is still covered, and
-  utterances are the only kind that can strand (a ballot is in the vote view, a
-  compaction is minted straight into a view) — the same two exclusions
-  `tui/ranked.go`'s `judged` and `top.go`'s `reading` make. Strays are **merged by
-  instant, not appended**: appending would put an hour-old note below everything
-  said since, and `tui.Load` lands the caret on the last row. A bit the view
-  already named is never moved. At load rather than in `absorb()` because a save
-  may not write a view the surface does not hold, or `tui/save.go`'s sentence stops
-  being true — and because this is a property of a record rather than an agreement
-  between the two writers this program happens to ship. Claim
-  `a-transcript-that-drops-a-stray`, no `sole`: dropping the `Absorbed` walk
-  un-folds every conversation and reddens four checks well outside this rule.
+- `cmd/tldr/record.go`'s `rejoin()`, `reaching()`, `summarises()`, `merge()`,
+  `inOrder()`, `outermost()`, `standsFor()` — **a load puts back into the views
+  everything the record holds that
+  neither of them reaches**, and it closes a defect that was one command with two
+  outcomes. `absorb()` merges the store and never the views, correctly; but the
+  session's checkpoint then writes its own `shown` over the file, so a bit written
+  by `tldr say` beside an open session landed in the store and in *no view at all*
+  — permanently, not until the next session. With nothing else running the
+  identical command put it in the next session's transcript, fold window and
+  persona context. The selector was whether a terminal happened to be open
+  elsewhere on the machine, which is invisible to everybody. **It was a D14
+  failure**, and the entry here said it was not: `tldr top` and `ctrl+t` both walk
+  `Store.All()`, so the bit stayed *enumerable*, which is a third reading D14 does
+  not count — an enumeration hands a reader every bit and no starting point.
+  Reachable in D14's sense is discoverable from a view, and the bit had stopped
+  being that. The transcript disagreeing with itself about one act was the second
+  fault, not the only one.
+- Accounted-for is now **D14's own walk**: out from *both* views, following `Prev`
+  and `Absorbed` as far as they go. The shallower rule it replaced (named by the
+  transcript, or absorbed by a scar in it) is right about utterances and wrong for
+  scars — a scar under another scar is named by the outer one's `Prev` (D13) and by
+  nobody's `Absorbed`, so it would read as a stray and be put back under the
+  receipt that already stands for it. Following `Absorbed` in that walk cannot
+  change the answer under D13 and is kept as the statement of D14 rather than as an
+  optimisation of it; the code says so and names the measurement.
+- **Utterances are not the only kind that can strand**, which this entry also used
+  to say. Two sessions is enough: the one saving second writes both its views over
+  both of the other's, so a ballot and a fold receipt strand together. Each kind
+  has its own destination — an utterance and a receipt into `shown`, a ballot into
+  `votes` (the only view that can hold one, since `Tally`/`Rank` panic on anything
+  else and on a vote naming other than one target). A receipt is the one kind that
+  can be refused: a view never holds both a scar and a bit it names, so a receipt
+  whose material the transcript already shows stays stranded — a named limit, in
+  `docs/DEBT.md`. Receipts are *offered* their places before utterances are, so a
+  reinstated receipt accounts for its own material; where each one lands is
+  decided by its instant like every other stray, and the two kinds interleave.
+- **The offer order is `outermost()`, and newest-first is not it.** A scar's `At`
+  is the *end* of the span it covers (`memory/cool.go`), so an outer fold whose
+  window ends on the inner one carries the same instant to the nanosecond — which
+  is what the surface writes whenever a hold splits a fold into two runs and a
+  later fold takes both. An instant order then falls through to the content
+  address and a hash decides which generation survives: measured over twenty
+  records differing only in what their bits said, **fourteen stranded the outer
+  receipt permanently**. `memory.Compaction.Count()` is the tiebreak, because it
+  is the one field that grows strictly with nesting (`Cool` merges an absorbed
+  compaction's own count, and D32's size rule refuses a window of one). The
+  argument is about the fold and not the file — a hand-assembled `Cool` over one
+  bit ties on both fields — and both halves are rows of
+  `TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse`.
+- Strays are **merged by instant, not appended**: appending would put an hour-old
+  note below everything said since, and `tui.Load` lands the caret on the last row.
+  The vote view takes the same merge, where the order decides only `Tally`'s ties
+  — and it hands them to the vote being **put back**, not to the one already in
+  the view. `merge` emits every row not later than a stray before the stray, and
+  `standing()` (`memory/vote.go`) keeps the later position on an exact tie, so the
+  incumbent keeps its *place* and loses the *ballot*. Those two read as the same
+  sentence and are opposite; this entry and the code both had it backwards until
+  review. A bit the view already named is never moved. At load rather than in `absorb()` because a save may not write a view the
+  surface does not hold, or `tui/save.go`'s sentence stops being true — and because
+  this is a property of a record rather than an agreement between the two writers
+  this program happens to ship. Claims
+  `a-transcript-that-drops-a-stray` (no `sole`; the blast radius is the whole
+  transcript) and, for the two-writer property,
+  `TestNothingTheRecordHoldsIsStrandedByTwoWriters`, written red before the fix.
 - `cmd/tldr/record.go`'s `checkpoint()` — **the file is now level with memory
   continuously, not at quit.** It returns a `tui.Save` bound to one path, and
   `tui.Load` takes it. Saving at exit made the whole promise conditional on a
@@ -1081,6 +1126,21 @@ config and isn't tracked, so a fresh clone needs
   relative path, because `filepath.Join` silently drops the empty element —
   the test's own comment says this was written down wrong until it was run
   against the version that gets it right.
+  `TestNothingTheRecordHoldsIsStrandedByTwoWriters` is D14 asked of a *file*: two
+  writers, the real `save`/`load`, and both views walked against `store.Len()`.
+  Nowhere else asks it that way — `memory/reach_test.go` and `tui`'s own check
+  both walk views a single process is holding, which is why a stranded ballot and
+  a stranded fold receipt were invisible for a checkpoint. Its walk is written out
+  from D14's sentence rather than shared with `rejoin`, so it cannot agree with
+  the code by construction.
+  `TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse` is `rejoin`'s own
+  table, hand-built because the rows that matter are ones no sequence of commands
+  produces, and every want is written out from the stated rule. It now asserts
+  both views, and carries the rows for the kinds that are not utterances: a ballot
+  goes into the vote view, a ballot naming two targets is left alone, a fold
+  receipt nothing shows comes back rather than its material, a receipt the
+  transcript already shows is refused, and nested receipts come back as the outer
+  one.
 - `cmd/tldr/cli.go`, `say.go`, `top.go` — the record's second mouth, and it is
   not a screen (D51(e)). `tldr` with no arguments is the surface, exactly as
   before; any argument at all is a non-interactive verb and never opens a

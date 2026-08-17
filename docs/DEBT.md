@@ -1031,8 +1031,11 @@ not.
   separately that an agent vote surface, if built, stays tiered rather than
   banned, and leaves one question open: whether tier-two votes may reorder
   a page the human has not yet judged. Neither is built.
-- **`record-frame-unclosed`'s `red:` list is 27 test-name literals
-  (`docs/CLAIMS.md:877-882`) and grows every trip.** D63(h) retires the
+- **`record-frame-unclosed`'s `red:` list is 28 test-name literals and grows
+  every trip.** (It was 27 the checkpoint before, and the line number that used
+  to be printed here is deleted rather than repaired: `docs/CLAIMS.md` is
+  hand-maintained and a line into it answers a different question in each tree.
+  `grep -n '^id: record-frame-unclosed' docs/CLAIMS.md` finds it in either.) D63(h) retires the
   trigger meant to catch it (a trip with no bearing on the frame) as the
   wrong instrument — nothing in the class that keeps tripping it can ever
   satisfy that trigger, since a `cmd/tldr` test whose only state is a file
@@ -1041,14 +1044,103 @@ not.
   class ("these checks, plus every round-trip test") rather than enumerate
   it; not built, and no new trigger fires until a round-trip test is added
   and `seam` finds the list stale before its author does.
-- **D14 and the shipped product disagree about what "reachable" means, and
-  nobody has written the reconciliation down.** D14: reachable means
-  discoverable from a view, not merely resolvable by address. But
-  `Store.All()`, `tldr top` and `judged()` (`tui/tui.go`) all enumerate the
-  store directly, bypassing any view — which is a stronger notion of
-  reachable than D14 rejected, not a violation of it (`record.absorb`'s own
-  doc comment already argues this correctly). The gap: all three
-  enumerations admit `memory.Utterance` only, so a `Compaction` or `Vote`
-  that is in the store and in no view would be invisible under every
-  current definition. Recorded at D63(i) so this is not rediscovered as
-  new; not fixed here.
+- **D14 and the shipped product disagree about what "reachable" means —
+  reconciled, and this item is now the residue rather than the question.**
+  The ruling: D14 binds *discoverability* and nothing else. `Store.All()`
+  makes the record **enumerable**, a third mode that D1 permits and D14 does
+  not count — more than *retrievable* (no address has to be known first),
+  less than *discoverable* (it comes with no starting point, so it cannot say
+  which bits a reader was meant to begin from). Recorded at D63(i); the
+  ruling itself is D66(a), and its own reasoning is what "reconciled" above
+  refers to. `memory/reach_test.go`'s header carries the three words.
+
+  *Two things this entry asserted are false and are corrected rather than
+  edited away.* It said `Store.All()`, `tldr top` and `judged()` "all
+  enumerate ... `memory.Utterance` only". `Store.All()` admits **everything**
+  — `TestAllHandsOutEveryBitIncludingWhatNoViewNames` proves it for a vote and
+  a scar — and only the two callers filter. And `judged()` is at
+  `tui/ranked.go:72`, not `tui/tui.go`; the callers that filter are
+  `cmd/tldr/top.go:120-125` and `tui/ranked.go:80-86`.
+
+  What is left open, and it is narrower than the entry above: **a fold receipt
+  the transcript already shows can still strand.** `record.rejoin` now walks
+  D14's own edges from both views and puts back what neither reaches — an
+  utterance and a receipt into the transcript, a ballot into the vote view —
+  but a receipt has nowhere to stand where the transcript already names the
+  material it summarises, because a view never holds both a scar and a bit it
+  names and a load may insert without rearranging. The construction, which is
+  a row of `TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse`: one
+  session folds and checkpoints while another that never folded saves after
+  it, so the file's transcript shows the originals and the receipt over them
+  is named by nothing. Nothing is lost that a reader can read — the material
+  is all there — what strands is the *event* of the fold. Closing it needs a
+  ruling about rewriting somebody else's transcript, not code.
+
+  Also still open and unmeasured: a ballot naming other than exactly one
+  target is left stranded on purpose, since `memory.Tally` and
+  `memory.View.Rank` panic on one. `memory.Cast` cannot mint one, so the only
+  source is a hand-assembled file. **Review asked whether `record.check()`
+  should refuse such a file outright rather than strand the bit quietly, on the
+  pattern the same file already uses ("a person moving a bad file aside
+  deliberately is the better outcome"). Refused, and the line is worth
+  stating:** every rule `check()` holds is the second statement of a condition
+  `memory` already enforces by panicking — `View.Bits` on a view naming a
+  missing bit, `Tally` on a non-vote and on a wrong arity *in the vote view* —
+  so each refusal fires exactly where the surface could not be drawn at all. A
+  wrong-arity ballot sitting in the store and in no view draws fine, costs one
+  bit of the vote view, and refusing on it would deny a person their whole
+  conversation over a bit no shipped writer can produce. What it actually wants
+  is a way to say so and carry on, and this program has no channel for that:
+  `load` returns a record or an error and nothing in between. **A warnings
+  channel out of `load` is the unbuilt thing here**, not a stricter `check()`.
+
+- **Two receipts can come back summarising the same material, adjacently, and
+  it is permanent.** Not the refused-receipt case above — this one is
+  reinstated rather than stranded, and it needs no hand-assembled file. Two
+  sessions at different terminal heights fold with different windows
+  (`Model.budget()` is the terminal height and `keep()` is half of it,
+  `tui/tui.go`), so one mints a scar over five bits and the other a scar over
+  eight of the same bits. Whichever saves last writes its own transcript over
+  the other's; the loser's scar is then in the store and in no view, and
+  `summarises()` only asks whether the transcript *names* something beneath the
+  stray — never whether another *receipt* already covers the same material. So
+  it is put back beside the wider one.
+
+  Measured 2026-08-16 on a twelve-bit transcript folded at keep 7 and keep 4,
+  the tall session saving last: the load returns
+  `RECEIPT span 09:00..09:04` immediately above `RECEIPT span 09:00..09:07`,
+  and the next checkpoint writes both. Nothing is lost and nothing is
+  unreachable — it is a legibility fault, and the reader meets the same five
+  bits summarised twice in two different aggregations.
+
+  Not fixed, because the fix is a dilemma rather than a line: refusing the
+  narrower receipt strands it, which trades a legibility fault for the D14
+  fault this whole mechanism exists to close. Deciding it needs a rule about
+  which of two overlapping receipts a transcript should carry, which is a
+  ruling and not a build. `outermost()`'s instant key is the half of it that is
+  already chosen — the day one of the pair is refused, the survivor should be
+  the newer receipt and not the higher hash.
+
+- **A receipt over a window of one cannot be ordered against the receipt
+  beneath it, and the outer one strands.** `outermost()` orders nesting by
+  `Compaction.Count()`, which grows strictly with nesting *because D32's size
+  rule refuses a window of one* — so a `memory.Cool` called by hand over a
+  single bit ties on the instant and on the count, and the content address
+  decides. No fold builds one; the source is a hand-assembled file. The cost is
+  a receipt in the wrong place, never two receipts standing for one thing —
+  that half has no exceptions and is a row of
+  `TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse`.
+
+- **An exact tie in the vote view goes to the vote being put back, and the
+  alternative was considered and refused.** `merge()` emits every row not later
+  than a stray before the stray, and `standing()` (`memory/vote.go`) keeps the
+  later position, so a reinstated ballot beats an incumbent it ties with to the
+  nanosecond. The alternative — place strays *before* an equal instant, so the
+  incumbent wins — was refused because `merge`'s rule is positional and both
+  views take the same one: making the vote view merge by a second rule is a
+  harder thing to explain than either outcome. Reachable only from a
+  hand-assembled file or a fixture, since `memory.Cast` reads the clock; pinned
+  as a row of the same test. The prose in `cmd/tldr/record.go` and in
+  `docs/CODE.md` asserted the opposite for a checkpoint, on the reading that a
+  row "keeping its place" keeps its standing — it keeps the *earlier* position,
+  which is the losing one.

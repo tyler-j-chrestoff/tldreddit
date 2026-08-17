@@ -221,8 +221,10 @@ citing a decision's reasoning, before writing a new entry, or whenever two
 entries below seem to disagree (the later one wins; the earlier one is how
 you tell what changed). It is append-only: never edit or delete an entry
 there. One line per decision below, title only, verified against that file's
-own headings on 2026-08-14 — D47's line was found drifted from its actual
-heading at that check and is fixed above; every other entry matched:
+own headings on 2026-08-16 — D61's line carried backticks around `Prev` that
+the actual heading does not have, and is fixed above; D66 is new this pass
+and matches its heading exactly; every other entry, including D47's line
+fixed at the 2026-08-14 check, matched:
 
 1. The record does not forget; the view does. D1.
 2. Self-modification is composition from primitives. D2.
@@ -292,10 +294,12 @@ heading at that check and is fixed above; every other entry matched:
 40. A correction ranks below what it corrects, the charter's reason for
     a settled claim was unsourced, and the scar stops summarising with
     a word bag. D60.
-41. `Prev` stops meaning a question, and stranding stops being
+41. Prev stops meaning a question, and stranding stops being
     asserted. D61.
 42. The forum container is deferred with a trigger, agent votes stay a
     tier not a ban, and the CEO's own first ruling on both was wrong. D63.
+43. Enumeration is a third mode D14 does not count, and the definition
+    nobody had written down was hiding a bug that strands a vote. D66.
 
 ## Working on the code
 
@@ -307,7 +311,9 @@ and a view across a process boundary, D52), `tui/` (the surface — `save.go`
 is the continuous-save invariant, D53(a)), `persona/` (an ollama client),
 `cmd/tldr` (loads the record on start and keeps the file level with memory
 on every change — `record.go`, D53(a) — no longer "the program" in the thin
-sense it once was; no arguments opens the surface, and `say`/`top`
+sense it once was, and its `rejoin()` now repairs *both* views across two
+writers, not only the transcript, D66 — no arguments opens the surface,
+and `say`/`top`
 (`cli.go`) write and read the record from outside it, D51(e)/D56) and
 `cmd/seam` (the claims checker).
 

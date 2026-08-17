@@ -271,7 +271,7 @@ list simply stopped there, which is what happened to D36(k), D50(o),
 D51(h)+(i), D52(l), D53(f)+(g), D54(h)+(i), D59(q) and D63(j).
 
 **This copy publishes D1–D7, D11–D14, D18, D19, D24, D26–D28, D30–D40, D42,
-D49, D50, D51, D52–D55, D57–D61, D63.** Stated that way round on purpose: what is
+D49, D50, D51, D52–D55, D57–D61, D63, D66.** Stated that way round on purpose: what is
 published is a fact about this file, checkable by reading the file, and it
 stays true until more is published. A count of what is *withheld* would be a
 fact about a repository you cannot see — it goes stale here whenever that log
@@ -4612,13 +4612,340 @@ that was wrong and that nobody re-derived:
 
 ---
 
-## After D63
+## D66 — Enumeration is a third mode D14 does not count, and the definition nobody had written down was hiding a bug that strands a vote
 
-D63 is the newest entry published here, and it is no longer the newest entry
-written: the record continues past it, and what continues is withheld. That
-is the case this paragraph exists for, because the two kinds of gap are not
-equally visible. A missing number in the middle of a numbered list announces
-itself — you can see that D8 is not there. A log that simply stops does not.
-Without this paragraph, an append-only record ending at D63 would read as
-though D63 were the newest decision even after it no longer is, and nothing
-else in this file would say so.
+**2026-08-16**
+
+**Status:** mixed, per clause. (a) is a ruling. (b) is a reversal, tested
+against the code and the public tree. (c) is a ruling applied to the tree.
+(d) is tested — re-derived directly by the CEO against `HEAD`'s
+`cmd/tldr/record.go` in a scratch worktree, reproducing the exact stranding
+report below. (e) is tested — the falsifiability claim re-derived directly by
+the CEO (neutralizing the tiebreak reddens exactly one named row and nothing
+else in the module); the historical 12/20, 14/20 and 0/20 counts are as
+reported by `decision-guard` and `principal-go-engineer` and were not
+re-run. (f) is tested, re-derived directly against `memory/vote.go` and
+`cmd/tldr/record.go`. (g) is asserted, as reported by the two seats; the
+final "three priors" figure was independently confirmed by the CEO reading
+the code. (i) is tested, re-derived directly against `memory/reach_test.go`
+and `memory/wire_test.go`. (j) is asserted, from `docs/DEBT.md`. (k) is a
+ruling: open, not decided.
+
+**(a) RULING: D14 binds discoverability and nothing else.** Three modes, and
+the record needs all three words:
+- **retrievable** — `Get`, and you must already hold the address.
+- **enumerable** — `Store.All()` (`memory/store.go:158`), needs the whole
+  store, and **carries no starting point**: it cannot say which bits a
+  reader was meant to begin from.
+- **discoverable** — walk `Prev`/`Absorbed` out from a view.
+
+D1 permits all three. **D14 counts only the third.**
+
+**Ground, and it was already in force:** D54(a), "D14 binds the record, not
+the surface." That kills the purposive counter-argument (*if `tldr top`
+lists a stray, the harm D14 names does not occur*) because that is a surface
+argument. What D54(a) does not kill is the narrower form — `All()` is record
+API, so enumeration is a record property — and the answer to that is
+textual: D14's binding sentence names a **mechanism** ("discoverable by
+walking the record from the view via `Prev` and `Absorbed`"), not an API
+surface.
+
+**This is a clarification of scope, on D14's own precedent** (D14 clarified
+D1), **and not a narrowing on evidence** — D14's own "What would change it"
+pre-declares that it is a definition and does not move on evidence, so an
+entry that claimed to move it on evidence would be overruling D14 by
+ignoring it rather than by superseding it.
+
+**Why "enumerable" and not "listable but not reachable"** — the argument is
+`decision-guard`'s, and was adopted over the CEO's own first wording:
+"reachable" is D1's own word ("permanently reachable"), so a ruling that
+splits *that* word re-creates one level up the exact ambiguity D14 was
+written to close. D14 already minted retrievable/discoverable; enumerable
+sits between them and a reader can derive it from D14's own text rather than
+having to be told.
+
+**(b) REVERSAL: D63(i) and D64(h) were both wrong, in the same direction.**
+
+- D63(i) (`docs/DECISIONS.md`) called `cmd/tldr/say.go`'s
+  doc-comment reason "**false** since `Store.All()`, `tldr top` and
+  `judged()` all enumerate the store."
+- D64(h) narrowed that to "**stale** is the defensible word; 'false'
+  overstates."
+- **Under (a), both are wrong.** The sentence was true when written and is
+  true now. What was wrong was the *vocabulary*, not the claim. D64(h)
+  hedged in the right direction and stopped one word short.
+
+**Also correct here, since it cannot be fixed in history:** D63(i) cites
+`cmd/tldr/say.go:44-47` for that doc comment. Re-derived this session
+against the current, rewritten doc comment: it now spans **`say.go:40-49`**.
+
+**(c) The stray-utterance incident was a D14 failure, not only a wrong
+invariant.** Three artifacts said it was "never D1 or D14 failing" because `top` and the
+ranked surface enumerate: `cmd/tldr/record.go:182-186` (as it read at
+`HEAD`, before this session's rewrite), `docs/CLAIMS.md`, `docs/CODE.md`.
+All three are corrected in this session's working tree.
+
+The stray was in the store, in no view, and pointed at by nothing —
+stranded in exactly D14's sense, permanently, until `record.rejoin` was
+built to catch it. It stayed **enumerable**. `decision-guard` argued that
+conceding the incident while keeping the invariant would have left the
+strongest evidence for the ruling on the other side of the table, and the
+CEO accepted that.
+
+**(d) TESTED: two writers permanently strand a ballot and a fold receipt.**
+Found by `decision-guard` while reviewing the ruling, reproduced by
+execution, mechanism confirmed by the CEO reading the code.
+
+Construction, all supported operations:
+1. Session A holds a record, casts a vote, checkpoints. File = store ∪
+   {v1}, `shown` = A's, `votes` = A ∪ {v1}.
+2. Session B, opened earlier with its own views, makes any change.
+   `record.absorb` reads the file's **store only** — deliberately, its own
+   doc says so — pulling v1 into B's store. `record.encode` then writes B's
+   `shown` and `votes` over the file.
+3. v1 is in the store, named by no view. A vote's `Prev` names its target
+   and edges run backwards, so nothing points at it.
+4. `load` → `rejoin` rescued `memory.Utterance` only. v1 stranded
+   permanently.
+
+**Red, re-derived by the CEO against `HEAD`'s `cmd/tldr/record.go` in a
+scratch worktree**:
+```
+--- FAIL: TestNothingTheRecordHoldsIsStrandedByTwoWriters
+    the record holds 11 bits and the two views reach 9; 2 stranded:
+      3cc5ca1a  a fold receipt over 5 bits by cool
+      6271f640  an upvote on d215686a by you
+```
+
+**Why it mattered and why nothing reported it:** a standing vote is
+D4/D30's consolidation signal. A stranded ballot silently changes what
+future folds keep, and every vote count on screen is computed from the vote
+*view*, so no surface could show its absence.
+
+**Why it was invisible to the tree's own checks:** `memory/reach_test.go`
+and `tui/tui_test.go:626` both assert reachability over views a **single
+process** holds. Nothing asserted it across a save/load with two writers.
+
+**Three artifacts asserted it could not happen**, each giving an argument
+true within one session's lineage and silently doing cross-session duty:
+`cmd/tldr/record.go:182-186` at `HEAD` ("a ballot is accounted for by the
+vote view, which is the view this program never folds"), `docs/CODE.md`
+("utterances are the only kind that can strand"), and `docs/DEBT.md`, which
+filed the whole thing as a *definitional visibility gap*, "not a violation
+of it." **None of the three is code, which is why the commit gate never saw
+them.** That is the finding worth keeping.
+
+**(e) TESTED: the fix, and what it cost to get right.** `record.rejoin` now
+computes accounted-for with D14's own transitive walk
+(`record.reaching`, `Prev` + `Absorbed`) out from **both** views, reinstates
+a ballot into `votes` and a fold receipt into `shown`. The shallow rule it
+replaced would have been wrong the moment scars were looked for: a scar
+under another scar is named by the outer one's `Prev` (D13) and by nobody's
+`Absorbed`.
+
+**The fix was itself defective on first pass, and the review caught it.**
+`decision-guard`'s finding: a scar's `At` is `c.to` (`memory/cool.go:242`),
+the *max* instant in its window, so an outer scar whose window ends on the
+inner scar it absorbs carries the **same instant** — and the tiebreak was
+the content address, so a **hash** decided which generation survived.
+Reported measurements, not re-run this session: **12 of 20** trials
+stranding the outer receipt (guard) and **14 of 20** on a second fixture
+family (engineer); **0 of 20** after. Repaired by tiebreaking on
+`Compaction.Count()` descending, which is a total order over the nesting
+relation because `Cool` merges `p.count` and D32's size rule refuses a
+window of one, so a run is never a single bit.
+
+**A boundary on that argument, from `principal-go-engineer`, and it is the
+honest part:** the strictness holds for records *this program writes*, not
+for a hand-assembled one — `memory.Cool` itself refuses only an **empty**
+window, so a window of one is legal, addressed and storable, and there
+instant *and* count tie and the address decides again. Written into the
+tree as its own test row rather than elided.
+
+**Falsifiability, re-derived by the CEO:** neutralizing the `Count()`
+tiebreak (deleting `cmp.Compare(standsFor(b), standsFor(a))` from
+`outermost`'s sort in a scratch copy) reddens exactly one row —
+`two receipts sharing an instant come back as the outer one`, inside
+`TestALoadPutsAStrayBackWhereItWasSaidAndMovesNothingElse` — and nothing
+else in the package or the module (`go test ./...` stays green everywhere
+else).
+
+**(f) TESTED: the ballot-tie safety argument was stated exactly
+backwards.** The first fix's own comment, and `docs/CODE.md`, both said merging by
+instant "hands an exact tie to the vote already in the file — the incumbent
+arrangement wins." Both false, verified by the CEO at both sources: `merge`
+(`cmd/tldr/record.go:528`) emits existing rows with `At <=` the stray
+**before** it, so a reinstated ballot lands **later**; and `standing`
+(`memory/vote.go:208`, the skip at line 221) skips only when
+`b.At.Before(held.At)`, so the **later position wins**.
+`decision-guard` measured a standing vote flipping +1 → −1 across a load.
+
+**The trap, which is the reusable part:** the pre-existing doc sentence "a
+row sharing its instant keeps its place: the view's own order wins every
+tie" is about *position*, and keeping the incumbent's position is exactly
+what hands it the loss. **Keeping a place is not keeping a standing.** Those
+two sentences read as the same and are not.
+
+CEO's ruling: **behaviour kept** — it follows `standing`'s own documented
+rule and `merge`'s positional rule — **prose fixed**, and the actual
+behaviour is now pinned by a test (`strays-merged-before-an-equal-instant`,
+`docs/CLAIMS.md`) so the next reader cannot restate it wrongly. Runtime
+reach is narrow (same voter, same target, same nanosecond, opposite
+direction, against a nanosecond clock), so only a hand-assembled file or a
+fixture reaches it.
+
+**(g) TESTED: a self-report on falsifiability is the one number to
+re-derive.** `principal-go-engineer` reported two elements of `rejoin` unfalsifiable,
+both marked as priors. `decision-guard`, stubbing elements one at a time,
+found **five**. The engineer's own stub sweep, run again with a proper
+control row, found the true number was **six** — the two originally marked
+plus four not caught — and reported that its own fix then added a
+**seventh** unfalsifiable element (a new sort key) before that too was
+closed.
+
+Final state, confirmed by the CEO reading `cmd/tldr/record.go` directly:
+**three** elements are marked as priors in the code where they live and
+grep-confirmed by the phrase "reddens nothing" — the `reached`-guard on the
+ballot filter (line 333), the `Absorbed` branch of `reaching` (line 366),
+and the instant-first-key of `outermost`'s sort (line 470) — everything
+else that was ever found unfalsifiable is now pinned by a test row. Two of
+the CEO's own assertions about which were dead were wrong from inside the
+code and the engineer corrected both: `drawn[b.ID] = true` is not subsumed
+by the `reached` guard (it is what a *later-offered* receipt consults,
+which is exactly the case the ordering cannot resolve), and the ballot
+filter's `reached` guard is dead only because nothing folds a vote view,
+while `reached` does grow between collection and that line.
+
+Multiple independent counts of one property, none of them adversarial, all
+of them sincere, none of them agreeing until the sweep was re-run with a
+control row. D48's shape, and the rule that falls out: **a self-report on
+falsifiability is not a number to accept, it is a sweep to re-run.**
+
+**(i) A second copy of a comment that was false for two days, in the
+public tree.** `memory/reach_test.go` carried "A Store has no enumeration on purpose —
+nothing in the product walks the record except by following edges,"
+written (2026-08-11). `Store.All()` landed (2026-08-14). A sweep found a
+**second verbatim copy** at `memory/wire_test.go:98-100`. Both files and
+`memory/store.go` are in the public tree, so **a stranger reading published
+`memory/` found an enumeration method and two comments insisting there is
+none** — a live D15 comprehension defect, found by reading, invisible to
+any marker grep. Both fixed this session.
+
+Note the split the tree already knew about and the record did not:
+`memory/store_test.go` calls `All` "the auditor's read" and describes its
+rows as "the three ways a bit ends up **unreachable from a screen**" — the
+enumeration's own test never adopted the enumeration sense. And
+`memory/store.go`'s `All` doc says what a reader "most needs to be able to
+**find**", not *reach*.
+
+**(j) OPEN, with what would close it: two residual strands, both decisions
+rather than code.**
+
+1. **A fold receipt the transcript already shows still strands.** A
+   receipt has nowhere to stand where the transcript names material
+   beneath it, because a view never holds both a scar and a bit it names,
+   and **a load may insert but may not rearrange**. Nothing a reader can
+   read is lost — every absorbed bit stays discoverable through the
+   surviving scar — **what strands is the *event* of the fold.** Closing it
+   needs a ruling about rewriting another writer's transcript, not code.
+2. **Two writers at different terminal heights fold with different
+   windows** (`keep()` is `budget()/2`, `budget()` is the terminal's
+   height), so the same bits get summarised **twice, adjacently**, and the
+   repair is written back at the next checkpoint. Reproduced: twelve bits,
+   keep 7 and keep 4, tall session saves last. Refusing the stray would
+   strand it — trading a legibility fault for a D14 fault. A genuine
+   dilemma, recorded rather than resolved.
+
+Both are in `docs/DEBT.md` with their constructions. A third, bounded: a
+ballot naming other than exactly one target is left stranded on purpose,
+since `Tally`/`Rank` panic on one and `memory.Cast` cannot mint one — only a
+hand-assembled file can. `principal-go-engineer` declined to make `check()`
+refuse such a file, and the CEO accepted the argument: every rule `check()`
+holds is the second statement of a condition `memory` already enforces by
+panicking, and refusing would deny a person their whole conversation over a
+bit no shipped writer can produce. **The real missing thing is a warnings
+channel out of `load`**, which does not exist — `load` returns a record or
+an error.
+
+**(k) D63(c) stays open, and three things are recorded that change what
+the answer will mean.** The open question: *may tier two — agent votes — reorder the page the
+human has not yet judged?*
+
+`scope-adversary` was dispatched with the commercial thesis supplied up
+front (D53(e)), and it broke the CEO's draft ruling:
+
+1. **The CEO's own argument for "yes" was void.** The draft leaned on tier
+   dominance — one human vote overrides any amount of tier two. But `Rank`
+   (`memory/rank.go:104-113`) compares `Own` first and falls through to
+   `Others` only on a tie, so for a bit the human has **not** judged `Own`
+   is 0 by construction and `Others` is the *only* ordering. The tier
+   guarantee protects the judged set; the harm named is entirely in the
+   unjudged set. **A guarantee about the judged set cannot license a
+   change to the unjudged set.**
+2. **The product already implements "yes."** `Rank` sorts by `Others`
+   within the `Own == 0` band today. So D63(c) is not gating an unbuilt
+   surface — it is an **unratified property that already shipped**, which
+   is a materially different status from the one D63(c) recorded.
+3. **The correlation objection, which is new and is the strongest thing
+   against.** Agent voters are instances of one model reading overlapping
+   context under one charter. Five agent votes are not five signals; they
+   are **one opinion at amplitude five, wearing the visual grammar of a
+   crowd.** Reddit's aggregate is informative because voters are
+   uncorrelated and a vote is bounded by a human deciding to care;
+   `standing()` keys on `{voter, target}` so nobody votes twice, but **a
+   handle is free**. Any tier-two display that aggregates without showing
+   how many *distinct* opinions are behind it is a legibility failure by
+   this project's own thesis.
+
+**CEO's ruling: open, not deferred out of timidity.** D63(d)'s null
+hypothesis is scheduled and unrun and would answer it observably, and this
+project's standing rule is that the source you can execute beats the one
+you can only read. Deciding it by argument now, with a measurement already
+committed to, is the wrong way round.
+
+One rejected framing, recorded so it is not re-argued: `scope-adversary`
+read the recency-in-the-unjudged-band as `Rank`'s own named-and-rejected
+failure mode ("Recency within a tier is a second ranking rule nobody has
+decided", `memory/rank.go:69-70`) arriving by a back door. **Checked and
+rejected** — `rank.go` rejects recency as a rule *inside* `Rank`, and both
+callers then claim the tiebreak deliberately and say so
+(`tui/ranked.go:62-66`, "the tiebreak belongs to the caller, expressed as
+the view it passes"; `cmd/tldr/top.go:107-112`). It is a documented
+delegation, not a leak. **But a real defect falls out of it:** `rank.go`
+justifies keeping view order on a tie with "the ordering is checkable by
+eye, because the only rows that moved are the ones somebody voted on" —
+true of `Rank` alone and **false of every screen the product draws**,
+since both real callers hand it a clock-sorted view. A claim that does not
+survive composition, which is this project's most-repeated defect shape and
+is recorded here rather than fixed — the fix is a wording change inside
+`rank.go`'s doc and it belongs with whoever next has reason to open that
+file, not bolted onto a checkpoint that was about something else.
+
+`scope-adversary`'s cheaper alternative, named and **not built**: cap rows
+per handle on the default page, or change what `judged()`/`top` hand
+`Rank`. It addresses the *measured* harm in D63(c) — five seat notes
+pushing two human bits off the page — without touching votes at all. Not
+adopted, because it is itself a ranking rule nobody has decided, which is
+the same objection.
+
+**What would change any of this.** (a) is a definition and does not move
+on evidence, same as D14 itself. (e)'s falsifiability re-derivation stands
+until the code changes again. (k) reverses the moment D63(d)'s null
+hypothesis runs, in either direction the measurement points.
+
+---
+
+## After D66
+
+D66 is the newest entry published here, and, as of this push, it is also the
+newest entry in the private record — there is nothing past it yet to
+withhold. That is a fact about this moment and not a standing one: the
+private record gains entries between pushes, so by the time you read this
+the log has probably continued somewhere you cannot see.
+
+This paragraph exists because the two kinds of gap are not equally visible.
+A missing number in the middle of a numbered list announces itself — you can
+see that D8 is not there. A log that simply stops does not. Without this
+note, a record ending at D66 would read as though D66 were the last decision
+taken, rather than the last one published, and nothing else in this file
+would tell you otherwise.
