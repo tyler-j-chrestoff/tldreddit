@@ -226,7 +226,12 @@ there. One line per decision below, title only, verified against that file's
 own headings on 2026-08-16 — D61's line carried backticks around `Prev` that
 the actual heading does not have, and is fixed above; every other entry
 through D66, including D47's line fixed at the 2026-08-14 check, matched.
-D67 and D68 are new this pass and match their headings exactly:
+D69 and D71 through D77 are new this pass and match their headings here
+exactly. Two of them, D72 and D76, carry a shorter title than the one in the
+private record: each decided two things and only one of the two is published,
+so the title drops the conjunct that named the other. The numbering on the
+left is this list's own and is sequential; the `Dnn` on the right is the
+entry's real name, and the gaps in it are the entries not published:
 
 1. The record does not forget; the view does. D1.
 2. Self-modification is composition from primitives. D2.
@@ -307,6 +312,20 @@ D67 and D68 are new this pass and match their headings exactly:
     considered. D67.
 45. Four wrong figures in D67, one of them inside the clause about not
     trusting a figure. D68.
+46. A count is a claim about a string, a case rule and a whitespace rule,
+    and the record had been stating one of the three. D69.
+47. A measurement of one value is not a measurement of the field, and the
+    record's own reasoning budget gets cut. D71.
+48. Segmentation happens in the view, not the record. D72.
+49. The budget counts rows, and D58(c)'s zero was measured in a world that
+    had no documents in it. D73.
+50. A person's newlines are theirs, and the test pinning the behaviour that
+    destroyed them stayed green while it was reversed. D74.
+51. The window was never asked for, so the model answered from a context it
+    did not know it had lost. D75.
+52. A seat that owns a package finds the bug the reviewers walked past. D76.
+53. D1 chose against the industry default without naming it, and the first
+    outside team to try the other road kept most of D1 anyway. D77.
 
 ## Working on the code
 

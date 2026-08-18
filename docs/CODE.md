@@ -1036,7 +1036,7 @@ config and isn't tracked, so a fresh clone needs
   headed by `band()` headings that group rows by the reader's own standing
   vote, kept above let go, with `gutterCell()` drawing the caret and the
   scar's own rule in the margin the transcript spends on the fade instead.
-  Built in `61ecb14` (D49), extended in `94b7d42` so the caret's own row
+  Built under D49, extended since so the caret's own row
   draws whole rather than cut at the margin, the same shape `render.go`'s
   `saidWhole` gives the transcript (D53(g), D54(b)). **This file is under
   active work this checkpoint** — its column arithmetic and exact widths
@@ -1181,7 +1181,7 @@ config and isn't tracked, so a fresh clone needs
   passes green under either mutation, which is what makes these the tests
   that hold the claims up.
 - `cmd/tldr/record.go` — the program's side of persistence, and it was missing
-  from this file for a whole unit: `4de7ef5` landed it and did not add an
+  from this file for a whole unit: the commit that landed it added no
   entry here, which is the staleness D52(f) is about, committed by the same
   hand that wrote D52(f) down. One file holds three concatenated streams — the
   record, the transcript view, the vote view, in that order — because three

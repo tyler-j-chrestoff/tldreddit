@@ -5288,17 +5288,870 @@ commit rather than after.
 
 ---
 
-## After D68
+## D69 — A count is a claim about a string, a case rule and a whitespace rule, and the record had been stating one of the three
 
-D68 is the newest entry published here, and, as of this push, it is also the
-newest entry in the private record — there is nothing past it yet to
-withhold. That is a fact about this moment and not a standing one: the
-private record gains entries between pushes, so by the time you read this
-the log has probably continued somewhere you cannot see.
+**2026-08-16**
+
+**Status:** mixed, per clause. (a) is a ruling, on four grounds each
+checkable. (b) is a ruling, and the coverage figures in it were re-derived
+by the CEO. (c) is tested — both defects re-derived by the CEO directly
+against `rqgm.txt`. (d) is a ruling; the record-side half was verified by
+the CEO to pass. (e) is asserted, largely `scope-adversary`'s own finding,
+conceded. (g) is
+asserted, the per-entry citation counts `scope-adversary`'s own measurement
+and not re-run here. (h) is asserted, and the extraction-reproducibility
+and `pdftotext`-absence claims in it were re-derived by the CEO.
+
+**(a) RULING: `cmd/cite` and `docs/CITATIONS.md` are adopted, narrowly**
+
+The founder's input: **"express English as code first if possible"**,
+offered as one facet of Gödel numbering — the move that makes statements
+*about* a system into computations *within* it.
+
+Adopted on four grounds, each checkable:
+- **The demand was logged before the build.** D68(f) named it an hour
+  earlier. That is the charter's own bar — an instrument earns a work unit
+  only when a named failure demands it, and the demand goes in the log.
+- **It paid before adoption**, finding two further defects (clause (c)
+  below) that three seats and the CEO had all read past.
+- **It goes red**, demonstrated on real text, and
+  `TestEveryVerdictHasAWitness` caught a hole in *itself*: a stub deleting
+  a verdict while keeping its row stayed green until a second loop was
+  added. An instrument whose own test found its own blind spot is the
+  inverse of D27's three instruments that could not fail.
+- **The ledger is not tipping, re-derived by the CEO on a consistent
+  basis** (`find <dirs> -name '*.go' -not -name '*_test.go' | xargs wc -l`):
+  11,150 product lines (`memory/`, `tui/`, `persona/`, `cmd/tldr`, non-test)
+  against 3,327 of instrument, non-test, on the same basis — `cmd/seam`
+  2,182, `cmd/cite` 1,145 (`cmd/cite` counting its own test file too is
+  1,471 lines whole). The draft of this clause first stated "3,327 of
+  instrument, of which cmd/cite is 1,471," mixing the non-test basis for
+  the total with the whole-file basis for the part — caught re-deriving it
+  rather than transcribing it, which is this entry's own subject applied to
+  itself before publication rather than after.
+
+**The mechanism that makes it more than a second copy of a number:** a
+block's expected figure must appear in the entry's own quoted sentence, and
+that sentence must appear exactly once in the cited clause. So a
+disagreement cannot be silenced by editing the block — change `expect` and
+the sentence stops stating it, and the verdict becomes `unquoted` rather
+than `agrees`. The only thing that makes a block agree is a record that is
+right, which in an append-only log means appending a correction and
+repointing the citation.
+
+**(b) RULING: the rule is the mechanism; the tool only enforces it**
+
+**A countable claim drawn from an external artifact gets a citation block
+in the same commit.** Stated by `principal-go-engineer` against its own
+work and adopted: the tool catches a figure only if somebody wrote a block
+for it, and the person writing blocks is the person who wrote the figure.
+Adopt the tool without the rule and the result is a catalog of the figures
+nobody was going to get wrong. Coverage today, re-derived: 13 blocks
+(`grep -c '^kind: count\|^kind: quotation' docs/CITATIONS.md`) against 68
+entries and 16 further bolded figures in the log
+(`grep -oE '\*\*[0-9][0-9,.]*%?\*\*' docs/DECISIONS.md | wc -l`) — **not
+backfilled**, and that is where the next findings are.
+
+**(c) TESTED: two more defects, found by writing the figures down as
+code**
+
+**The fifth: D68's own title miscounts its subject.** It is titled "Four
+wrong figures in D67," and by its own text two of the four are not figures
+— (d) says "The 16.7-point figure and the underlying claim are
+unaffected... What was wrong was the summary's description of the second
+arm," and (e) says "What was wrong is the evidence-to-claim link." Found by
+`scope-adversary`, re-derived by the CEO against the committed text.
+
+**The sixth: D68(a)'s own counts are wrong in the same class as the error
+they correct.** Re-derived by the CEO against `rqgm.txt`:
+
+| needle | as extracted | whitespace flattened |
+|---|---|---|
+| `Selective Erasure` cased | 0 | 0 |
+| `selective erasure` folded | **9** | **10** |
+| `erasure` cased | **27** | 27 |
+| `erasure` folded | **28** | 28 |
+
+D68(a) says the phrase occurs 9 times — true of the *file*, false of the
+*paper*: one occurrence is split across a column break, so the paper says
+it ten times. And it gives `erasure: 28` carrying no case rule, where its
+two sibling bullets state case explicitly; cased it is 27.
+
+**Six answers to what D67(i) and D68(a) each discussed as one number.**
+That is the finding and it is the founder's point made concrete: **a count
+is a claim about a string, a case rule and a whitespace rule, and the
+record had been stating one of the three.** The ambiguity was not
+discovered by re-reading; it became visible the moment the figure had to be
+written down as a computation with its rules beside it.
+
+**(d) RULING: `cmd/cite` does not join the pre-commit hook, and the split
+is deliberate**
+
+The **record-side** half is already gated automatically, because it is a
+Go test needing no cache — `TestEveryShippedCitationResolvesIntoTheRecord`
+asserts every citation resolves to its clause and every figure appears in
+its sentence. Verified by the CEO to pass with `TLDR_SOURCES` unset.
+
+The **source-side** half stays a checkpoint step, overruling
+`principal-go-engineer`'s recommendation of a hook on this machine only.
+`evidence-missing` is a hard failure and a fresh clone has no cache, so
+hooking it makes the gate fail for want of a cache rather than for a
+defect — and a hook that behaves differently on different machines is the
+footgun `core.hooksPath` already is here.
+
+**(e) ASSERTED: what this cannot reach, and it must not be sold as more**
+
+**Two of D67's four errors were not figures, and they were the two that
+changed what a reader would believe** — a misdescribed ablation arm and a
+quotation cut one parenthetical short of the clause that reversed it.
+`scope-adversary` established this and it is the strongest thing said
+against the build.
+
+For the truncation case the format requires `then:` — what the source says
+next, to the end of the sentence the quotation was cut from — so an author
+who truncates must write down the remainder. **This converts an invisible
+omission into a visible one; it does not evaluate the inference.** A
+determined or careless author can write the continuation and still draw the
+wrong conclusion, and nothing fails. Recorded in the tool's own header as
+well as here, because the failure to guard against is this being read as
+"figures are checked now": the next such error will be a correct number
+under a wrong reading, with a green catalog beneath it.
+
+Also out of reach and deliberately not in the format: whether a needle is
+what its sentence *means* (a block counting `erasure` under a sentence
+about `Selective Erasure` computes 28 and agrees — D67(i)'s exact shape,
+only narrowed), and any comparative judgement.
+
+A heuristic on contrast words in the continuation (`however`, `therefore`,
+`but`) was **considered and rejected**: it fires often enough to be
+ignored, rarely enough to be unfalsifiable, and its red demonstration would
+be a fixture rather than real text.
+
+**(g) ASSERTED: the base rate, measured, and why it did not decide this**
+
+`scope-adversary` measured external-artifact citations per entry: D18:1,
+D24:1, D25:2, D60:2, D61:2, **D67:10**, D68:3. D67 alone carries more than
+the previous 66 entries combined, so "our entries contain unverified
+figures" was **not** a standing property of this record — it was a
+property of one session in which the CEO read nine papers. Every other
+figure in the log is a count against a tree on disk, most already carrying
+its command inline.
+
+Why it did not decide against building: **D67(h) made the
+self-improving-agent lineage a standing watch this same checkpoint**, so
+external-artifact sweeps become recurring rather than exceptional. The
+adversary named this itself as the argument that would move it, and
+offered to wait one checkpoint. The CEO ruled not to wait, on the ground
+that the instrument had already paid twice before adoption. **If the next
+checkpoint's research beat produces no new citation blocks, this ruling was
+wrong and the base rate says so** — that is the trigger, and it is cheap to
+check.
+
+**(h) ASSERTED: the storage answer, and the founder's principle at the
+right scope**
+
+**Addresses in the repo, bytes outside it.** `docs/CITATIONS.md` carries
+each source's text SHA-256, byte length, origin URL, the PDF's own SHA-256
+and the extraction recipe; the bytes live in a cache keyed by address.
+Vendoring 1.7MB of third-party papers into a public tree that is
+append-only from its root (D23) was rejected as a one-way door — and
+`scope-adversary` independently measured it at 31% repo growth per
+checkpoint, recurring.
+
+Enabling fact, verified: all three papers extract byte-identically from
+their arXiv PDFs under `pypdf 6.13.0` with the naive recipe, so the chain
+PDF-address → recipe → text-address → count is re-derivable by a stranger.
+`pdftotext` is not installed here (`which pdftotext`, verified by the CEO),
+so a recipe naming it would have been wrong.
+
+**`memory.ID` was considered for addressing sources and rejected**, and the
+reasoning is worth keeping: it addresses a `Bit` and panics outside the
+closed payload set (`memory/id.go:49` — "the set is Utterance, Compaction
+and Vote, by value", verified by the CEO), so using it would mean inventing
+a Bit shape for a paper and addressing that rather than the bytes. A plain
+SHA-256 is verifiable by a stranger with `sha256sum` and needs none of our
+code. What the founder's principle actually buys here is that **the cache
+filename is the address**, so "which `rqgm.txt`" is a question nobody can
+get wrong.
+
+**What would change any of this.** (a) reverses if the next checkpoint adds
+no blocks, per (g). (b) and (e) are rulings. (c) is settled against files
+that do not move.
+
+---
+
+## D71 — A measurement of one value is not a measurement of the field, and the record's own reasoning budget gets cut
+
+**2026-08-17**
+
+**Status:** mixed. (a) is tested — measured against five local models. (b) is a
+ruling, on the founder's argument and a figure.
+
+**(a) TESTED: `persona.DefaultModel`'s doc asserted that sending a `think`
+setting at all "would break every non-reasoning persona." It was a
+generalisation from one value of an enum, and it stood in the tree for days.**
+
+The real measurement behind it was a 400 from `llama3.2:1b` on `think: true`.
+`think: false` is accepted by that model identically to omitting the key —
+confirmed by review across all five models installed here; `true` is the only
+value that ever 400s. Corrected in place, marked.
+
+Same shape as D69: a count was a claim about a string, a case rule and a
+whitespace rule, and the record stated one of the three. Here a claim about a
+field rested on one of its values. **The general form, which is the reusable
+part: measure the value you tested, and write down which value it was.**
+
+Consequence, and the reason this was worth an entry rather than a comment:
+the false claim was load-bearing. It is why the client sent no `think` key,
+which is why every persona turn ran with thinking implicitly on — measured at
+8–66s and thousands of monologue characters against 0.22s with it off. A
+wrong sentence in a doc comment cost every turn this product has ever taken.
+
+**(b) RULING: log a correction when the wrong claim reached the record or a
+reader. Stop logging the drafting.**
+
+Founder's argument, and it is his: *"high reasoning is how you get a 9000 line
+decisions file."* Checked rather than accepted — last twenty commits added
+**7,189 lines of record against 1,691 of product code**, and this log is 9,061
+lines governing a record holding **36 bits**. Roughly 250 lines of
+deliberation per bit of memory the product actually holds.
+
+Note where the disease moved. The charter's tripwire was instrument *code*
+against product code. That ratio is now healthy —
+11,233 product against 3,327 instrument. The metric being watched got fixed and
+the pathology relocated into prose, where nothing was counting.
+
+This does not retire "a correction that leaves no trace is indistinguishable
+from never having erred." It narrows it. D68's four figures were **published**;
+they earned an entry. D70 spent roughly a third of its length narrating drafts
+that were caught before commit and reached nobody — that is the record writing
+down its reasoning chain instead of its conclusion, which is the same behaviour
+the persona was just stopped from doing, one layer up.
+
+**What would change this.** (a) is settled against files that do not move. (b)
+reverses if a correction that went unlogged under it later has to be
+rediscovered from scratch — that is the cost it trades against, and it is the
+thing to watch for.
+
+---
+
+## D72 — Segmentation happens in the view, not the record
+
+**2026-08-17**
+
+**Status:** mixed. (a) is a ruling, reversing a position the CEO had already
+stated to the founder, on four claims re-derived against the tree.
+
+**(a) RULING: a fenced region is segmented for layout, budget, quoting and the
+word index. It does not become its own bit. Reversal, and the CEO's.**
+
+The founder's line, on being told a forty-line code block breaks the fold
+budget: *"Maybe a forty-line code block isn't one bit though?"* The CEO agreed
+in conversation and said the record-level split would get a decision entry
+before code. This is that entry, and it rules the other way.
+
+`scope-adversary` was dispatched **before** the ruling, precisely because the
+CEO had already agreed in public and the change reaches a content address in
+an append-only record. Three of its findings are load-bearing and each was
+re-derived by the CEO:
+
+- **Segmentation does not fix the fold budget, which was the problem that
+  started this.** `Model.budget()` is `max(m.viewport.Height(), coolFloor)`
+  (`tui/tui.go:1785`) — a **row** measurement used as a **bit** count. A
+  forty-row block is 1 bit against a ~30-bit budget and blows the screen; as
+  two bits it is 2 against 30 and blows the same screen. The defect is a
+  budget sized in rows that counts in bits. D58(b) closed that for the screen
+  and left the per-bit case open; this is that case, and it is view-layer with
+  no address in it.
+- **The `Truncated` precedent argues the opposite way, and the CEO read it
+  backwards.** `memory/bit.go:161-170` reaches the content address *because*
+  "nothing about the text says which kind of ending it was." It is the record
+  encoding what a reader cannot recover. **A fence is recoverable from the
+  text by anyone, forever** — so the same doc comment is a reason to keep it
+  out of the address.
+- **Adjacency does not group, measured on our own record.**
+  `memory/view.go:576-583`: 7 of 29 said bits, **24%**, were written from a
+  shell against whatever view was on disk, one landing its `Prev` on a
+  plausible-but-wrong neighbour. Segments of one reply would rely on exactly
+  that adjacency. The cure is a turn container, which is a wire break, which
+  is D63(a) — **deferred on a trigger that has not fired.** Splitting the
+  record here would smuggle D63 open as a side effect of a display fix.
+
+Two further costs, both real: `sparing()` (`memory/view.go:681`) spares
+exactly one `Prev` step, so an upvote on a code segment would spare only the
+line above it — the kept-row-between-scars defect it exists to cure, back on
+day one; and `tui/testdata/stranding.txt`'s 270 frozen schedules assume one
+bit per turn and would be measuring a world that no longer exists.
+
+**What survives is the founder's actual observation.** The grain of a bit is
+too coarse for a forty-line program, and the fenced region is the right seam —
+`tui-design-engineer`'s argument that a fence has an open and close the
+speaker wrote, where a paragraph break is whitespace, stands. The segmenter
+gets built. It runs in `tui/`.
+
+**The vote-grain argument, which was the only one requiring a record split,
+has no evidence.** 39 bits, 4 ballots, and no report from anyone of wanting to
+vote on part of a reply. The CEO inferred it from one transcript and then
+cited it as load-bearing — the charter's own "a claim treated as established
+because the record repeats it," at one repetition.
+
+**Standing reversal condition, same shape as D58(a)'s:** Tyler reports,
+unprompted, from real use, that he wanted to keep or vote on part of a reply
+and could not. One such report reopens this. A second, weaker one: if the
+ingest path ever stops preserving fence boundaries in the stored text, the
+`Truncated` argument flips and the split belongs in the record. It does not
+today — ollama returns the whole string and the fences are in it.
+
+**What would change any of this.** (a) reverses on the unprompted-use report
+above, which is cheap to recognise and costs nothing to wait for.
+
+---
+
+## D73 — The budget counts rows, and D58(c)'s zero was measured in a world that had no documents in it
+
+**2026-08-17**
+
+**Status:** tested. Figures are `tui-design-engineer`'s, re-derived by the CEO
+where they decide something.
+
+**(a) TESTED: `Model.foldable` counts rows, not bits. This was the defect
+behind the founder's complaint, and segmentation was never the fix (D72(a)).**
+
+`budget()` returned `max(viewport.Height(), coolFloor)` — a row measurement —
+and it was compared against a count of **bits**. A forty-row answer cost 1
+against ~23 and the screen blew without a fold firing. Now `costOf(bitRows(b,
+room), budget)`, capped at half a screen per bit.
+
+The gauge is the receipt, on the founder's own frame: **`5/23` → `15/23`**,
+re-derived by the CEO from the harness. Five bits, one of them a program, now
+say they fill fifteen rows instead of claiming five. Worst hot view went
+**129 rows of material → 24–29** against a 23-row viewport.
+
+`tui/testdata/stranding.txt` did **not** move, and this was checked rather
+than assumed: every schedule in it is one-line bits, where the new rule
+reduces to the old one exactly. `simulate` now calls the program's own
+`foldable`/`keepAhead`/`costOf` instead of restating them, which is D27's
+lesson applied to the instrument.
+
+**(b) TESTED, and it is a regression this entry exists to keep from being
+silent: D58(c)'s "0% at every budget and vote rate tried" is no longer true,
+because it was measured before this product could draw a document.**
+
+D58(c) closed "the view opens on an answer whose question was folded" by
+moving `keep` back to the human's last turn, and measured 0%. A row-weighted
+budget takes some of it back: **18 of 38 folds at one document in six, 58 of
+116 at one in two.** The cause is structural — a record with documents is
+large in rows and small in *bits*, D32 needs two bits to fold, and the two
+together leave `keepFrom` no range to move the cut.
+
+**D58(c) is not overturned; its measurement was true of the world it
+measured.**
+The honest statement is that documents are a case D58 never saw, and the
+figure in the record now needs that qualifier — which is why this is written
+down rather than left for someone to rediscover as a new bug.
+
+**It is a legibility defect, not a reachability one.** The scar above the
+answer is the receipt (D58(g)), so nothing is unreachable and D1 is untouched.
+
+**The named fix is not taken here and is not this seat's:** D32 allowing a run
+of one when the run costs more than a row — replacing eleven rows with one is
+exactly what a fold is for. That reaches a content address, so it is
+`principal-go-engineer`'s and it is a decision, not a change. First entry in
+`docs/DEBT.md`. The orphan count is a `t.Logf`, deliberately not a bound,
+because bounding it would pin a number nobody has decided.
+
+**Accepted on the trade, stated plainly:** a screen holding 129 rows of
+material in a 23-row viewport is unusable, which is the founder's actual
+report; an answer whose question sits behind a visible scar is legible-with-a-
+step. Taking the second to remove the first is the right way round, and it is
+reversed by the D32 ruling above rather than by undoing this.
+
+**What would change this.** (a) is settled by the gauge. (b) closes when D32
+is ruled on; until then the figure stands with its qualifier.
+
+---
+
+## D74 — A person's newlines are theirs, and the test pinning the behaviour that destroyed them stayed green while it was reversed
+
+**2026-08-17**
+
+**Status:** tested. (c) is a ruling.
+
+**(a) TESTED: `drawn`'s non-document arm stops flattening whitespace, for
+every speaker.** The founder pasted a Go doc comment — no fence, no heading,
+no list item — so `structured()` returned false and `tui/unfold.go`'s fallback
+ran `strings.Join(strings.Fields(text), " ")`. His indentation and every
+newline were destroyed.
+
+**This contradicted the principle the same seat had written down two passes
+earlier**: "the gate keeps a person's punctuation and spends a model's."
+Flattening a paste does not keep punctuation. The principle was right and the
+fallback was its opposite, and nobody noticed because the gate was the part
+being argued about.
+
+Now `wrapped`: a line that fits is drawn as written, a line that does not is
+wrapped into the room its own indentation leaves, with continuations carrying
+that indentation. **No branch on the speaker** — a person's newlines and a
+model's are equally theirs, and an author-conditional renderer would be a new
+concept this surface does not need. The document gate is untouched and
+`structured()` was not widened.
+
+Unexpected reach, found in tmux rather than argued: **a live reply is usually
+three prose paragraphs with no block mark at all**, so this closes the band on
+what the model says most of the time, not only on pastes.
+
+**(b) TESTED: a test kept passing through the reversal of the behaviour it
+documented. Third instance of D27's shape, and the first found by a rename.**
+
+`TestAnExpandedRowShowsEveryWordAndNotTheLineBreaks` existed to pin the
+collapse. After the collapse was removed it was **still green**: its only
+assertion standing for "no line break reached the screen" was *no blank row*,
+and its fixture contained no blank line. The whole suite was green on an
+inverted documented behaviour.
+
+Re-derived by the CEO in a `git archive HEAD` tree: with `wrapped` mutated to
+flatten, the renamed
+`TestAnExpandedRowKeepsTheWordsAndTheLineBreaksTheRecordHolds` fails, **and it
+fails by refusing to be vacuous** — "the reply drew 3 row(s) at width 60, so
+nothing here is being tested." That witness guard is the repair, not the
+rename. D48 closed a vacuous check and proved the gate could not catch a quiet
+closure; this is the same gap from the other side — a check that stays true
+when its subject is inverted.
+
+Also found: `TestHarnessDocumentFloor` computed its comparison from the
+flatten formula spelled inline, so it measured against a renderer the program
+no longer contains. Its cited result is now **false in a band** — the plain
+wrap is cheaper in rows from ~5 to ~19 columns and dearer from 20 up. The
+conclusion survives on its other two legs and the paragraph says so.
+
+**(c) RULING: a quotation renders through the lede's rule, not a rule of its
+own. One path for every one-line drawing of a bit.**
+
+The scar header reads `qwen3.5 "There is no such thing as **evolution** in
+Go."` — raw asterisks inside the quotation. `opening`'s doc defends this as
+verbatim: "inside quotation marks every one of those is a character the
+speaker typed."
+
+`tui-design-engineer` correctly refused to patch it and reported that neither
+existing precedent reaches the case: `**` here is not redundant with a drawing
+(nothing draws the emphasis) and not delimiting for recovery (it delimits
+emphasis that will never render). That is right, and the conclusion is that
+the case does not need a third rule — **it needs the same rule `lede`
+already has.**
+
+The distinction that settles it: **`**` is not a word, it is markup about a
+word.** Spending it leaves the speaker's words exactly as spoken. Keeping it
+shows what the speaker *typed* rather than what they *said*, and a quotation
+is a claim about the second.
+
+So a quotation spends what `lede` spends — hashes, doubled emphasis, leading
+bullets — and keeps what `lede` keeps, backticks, on D73's measured
+delimiting argument: `"the loop condition is i < j"` is genuinely worse than
+`` "the loop condition is `i < j`" ``. This deletes a special case rather
+than adding one, and `opening`'s verbatim paragraph is superseded here.
+
+**What would change this.** (a) and (b) are settled against the tree. (c)
+reverses if a reader is shown a quotation whose meaning turned on a mark it
+spent.
+
+---
+
+## D75 — The window was never asked for, so the model answered from a context it did not know it had lost
+
+**2026-08-17**
+
+**Status:** tested. The headline measurement is the CEO's own, re-derived
+against the live server after the seat reported a different one.
+
+**(a) TESTED: `num_ctx` was never sent, so every request ran in ollama's
+default 4,096-token window and anything longer was cut with nothing said.**
+
+`options` carried one field, `temperature`. `/api/show` reports
+`qwen35.context_length` = **262,144** for the model we ship against. We were
+using **1.6%** of it, and `askCeiling = 60` had been tuned to fit *under* the
+accident.
+
+**Re-derived by the CEO, 401 turns of synthetic conversation, temperature 0,
+same bytes both ways:**
+
+| | prompt tokens read | wall | answer to "how many shards did I mention?" |
+|---|---|---|---|
+| no `num_ctx` | 4,064 | **103.5s** | "186 shards" — **wrong** |
+| `num_ctx: 32768` | 13,262 | **9.5s** | "200 shards" — correct |
+
+**Eleven times faster on three times the context, and the truncated run gave a
+confidently wrong number.** That is the finding. The cost was never only
+memory: a truncated context made the model confabulate a plausible figure,
+and in this product that answer becomes a permanent bit attributed to the
+persona. A record whose provenance claim ("this is what was said, given this")
+cannot be backed is the one failure this project exists to prevent.
+
+It also corrects the CEO's own earlier diagnosis. D71 found reasoning tokens
+costing 8–66s per turn and fixed it; that was real and it was **not the whole
+of the slowness the founder reported**. D71's measurement used a one-line
+prompt, which never reached the context limit. Two independent causes, one
+found because the other was fixed.
+
+**(b) TESTED: `Persona.Window` states the window; the program stops
+inheriting one.** Sited on `Persona` beside `Temperature` on that field's own
+argument — it shapes what the model can see, so a persona whose reach depends
+on a number nobody wrote down cannot be reproduced. `DefaultWindow = 32768`,
+deliberately not the advertised maximum: a large `num_ctx` costs KV-cache
+memory on the founder's machine, and **choosing the number is the hardware
+owner's business while knowing it is ours.** `Client.WindowFor` asks
+`/api/show` what a model can actually hold, so a caller can find out rather
+than guess.
+
+**(c) TESTED: the naive truncation check does not hold, and it is recorded
+rather than shipped.** `PromptTokens == Window` looks like a truncation
+detector and is not: the server drops whole turns from the front, so the count
+lands somewhere below `Window` by the size of whatever turn straddled the
+edge. `Answer` now carries `PromptTokens` and `Window` so a caller can see
+what was read against what was offered; **no boolean claims truncation was
+detected**, because it cannot be, and a check that cannot fail is worse than
+a claim nobody made (D27, and D74(b) is the third instance this project has
+shipped).
+
+**(d) OPEN, owed to the next seat: `askCeiling = 60` is now wrong by its own
+doc** — "Set num_ctx and this constant is the thing that is wrong." It lives
+in `tui/ask.go` and was not touched here. It bounded bits against a 4,096
+window; against 32,768 the arithmetic changes and the honest unit is tokens
+rather than bits, which its own comment already says.
+
+**(e) OPEN: the persona is told something that is false above the ceiling.**
+`standingInstruction` tells the model "the same fold happens on their screen
+in the same moment. The two of you are looking at one conversation rather than
+two." True below `askCeiling`; above it the person sees more than the model,
+which `tui/ask.go:458-462` states plainly. The founder's record holds 72 bits
+against a ceiling of 60, so it is false for him now. The instruction was true
+when written and nothing updated it when the ceiling arrived. Belongs with
+(d), and both are `tui-design-engineer`'s.
+
+**(f) OPEN: the hardware owner is told none of this.** The `README.md`
+covers installing ollama, pulling the model and what the error messages mean.
+It says nothing about context length, `num_ctx`, or what a larger window costs
+in memory — so a stranger following it gets 4,096 tokens and never learns
+there was a choice.
+
+**What would change any of this.** (a)–(c) are settled against a live server
+and re-derivable with the commands above. (d), (e) and (f) are owed work, not
+open questions.
+
+---
+
+## D76 — A seat that owns a package finds the bug the reviewers walked past
+
+**2026-08-18**
+
+**Status:** mixed, and the line says which. (a) and (f) are tested —
+each re-derived by the CEO with the command in the clause, against sources
+and code rather than reports. (c) is a correction to a tested entry and is
+tested to the same standard. (d) is measured at a sample size that decides
+little and says so. (e) and (g) are rulings. (h) is asserted.
+
+**(a) TESTED: D67(f)'s "opposite mechanism" is wrong, and the correction
+makes Trellis stronger prior art rather than weaker.**
+
+The research beat D58(k) made a scheduled obligation had not run for six
+checkpoints. It ran this checkpoint against D67(h)'s named target — Trellis,
+`arXiv 2606.29823`, Meta Platforms and Daniel Abadi at UMD.
+
+D67(f) recorded: "Its mechanism is the opposite of ours: **mutable in
+place, plus a CDC changelog and AS-OF time-travel queries**, versus our
+immutable-and-derive." The paper's body says:
+
+> "Nodes are inserted once and never deleted, but some fields are mutated in
+> place: backpropagation rewrites visit counts and rewards along the ancestor
+> chain, and evolution reassigns a node's island."
+
+Insert-once-never-delete is D1's substrate. Three numeric fields mutate —
+`visit_count`, `ucb_score`, `island_id` — and the change log exists *because*
+of that exception. D67 read Table 1's summary row, which does self-describe
+Trellis as "mutable," and did not read the body.
+
+**The correction cuts against us.** "Opposite mechanism, same conclusion" is
+the comfortable reading: convergent evolution, two roads. The true reading is
+convergent *mechanism* — a well-resourced team choosing our substrate,
+calling non-deletion a correctness requirement rather than an aesthetic
+("Multi-version state is not merely an observability convenience—it is a
+correctness requirement for training"), and naming three open research
+problems that exist only because they let three fields mutate: retraction
+propagation, bi-temporality, and concurrency semantics for concurrent tree
+search.
+
+What the paper does *not* supply is a cost figure — no storage, latency or
+complexity number that would let anyone say D1's mechanism is more expensive.
+So the record may say: the one team that chose mutation chose it only for
+derived numerics, kept the objects immutable, and paid for the exception in
+open problems. It may not say D1 is cheaper. **D1's alternatives-considered
+should name changelog-over-mutable explicitly and cite this paper**, which
+D67(f) already observed it does not.
+
+Re-derived by the CEO rather than taken on report: PDF sha256
+`b377ebd9796401f079b12195886f25ab1d6739e2716247825cf31bd48cad6fc5`, pypdf
+extraction sha256
+`51ad717657f465ac27f925ef173f232bf0a1b27343bc7ec370da609f603aa70f`, 68,844
+bytes. The quotation above reproduces exactly under
+`tr '\n' ' ' < extract | grep -o "Nodes are inserted once and never deleted[^.]*\."`.
+
+**(c) TESTED: D75(a) overstated its own scope, and the correction is
+narrower than the seat that found it first stated.**
+
+D75(a) says every request ran in a 4,096-token window "and anything longer
+was cut with nothing said." True of the wire. Not, on its own, a claim about
+what this surface was sending: `askCeiling = 60` at its own measured ~60
+tokens a bit bounded a `tldr` request to roughly 3,600 tokens plus a
+~300-token system prompt — just under the default. So ordinary conversation
+from this program was **not** being truncated. The exposure was material the
+bit count could not see, chiefly one long paste or a run of long replies; a
+50 KB paste every seventh bit estimates at 12,951 tokens, three times the
+default window, and that case was being cut in silence.
+
+D75(a)'s measurement was a 401-turn synthetic conversation, which is not a
+shape this surface produces. **The correction is one of scope and not of
+finding**: the accident was real, the window was unasked-for, the confabulated
+answer was real, and the case it silently cut was the paste rather than the
+conversation.
+
+**(d) MEASURED, at a sample size that decides little and is stated at that
+weight: the instruction rewrite is cleared on reconstruction, and the failure
+nobody was watching runs the other way.**
+
+D75(e)'s rewrite was checked at 4 samples an arm and one sample rebuilt
+folded content as a numbered list — `foldNote`'s named ignition failure, in
+the arm that changed. Re-run at 8 samples an arm on the announced-fold
+fixture (qwen3.5, temperature 0.7, `AB=1 FULL=1`): **16/16 across both arms
+refused to reconstruct.** The single reconstructing sample did not recur.
+
+The harness had been truncating replies at 240 characters, and the
+truncation was hiding the part that mattered — the refusal comes first and
+whatever follows it comes after. Printing them whole showed the
+*invented-menu* failure, which `standingInstruction`'s own comment names as
+untested ("confabulation wearing a question mark ... Nothing here tests for
+it"): a model that cannot see the decision offers the human a menu of
+decisions it made up. Clear instances **old 4/8, new 1/8** — worse in the
+text this project had been shipping, and directionally better in the
+replacement. Eight samples decide little; this is recorded as a direction and
+a fixture, not as a result.
+
+Two smaller defects in the new arm, neither about reconstruction: one sample
+asserted "We haven't decided on the three drifted columns," a claim about the
+record it cannot make; one inverted the instruction's own phrase to "a guess
+with your name on it," where the point is that the guess carries the model's.
+
+**(e) RULING: hires may be cut by package as well as by judgment, and the
+register is written as situation rather than as adjective.**
+
+The founder asked for one seat per folder. The CEO's first answer was no, and
+it argued against a proposal he had not made — replacing the judgment seats
+rather than layering under them. **That reversal is recorded as a reversal.**
+The layered version is better, and the reason is one this seat's rules are
+shaped badly to see: "an instrument earns a work unit only when a named
+failure demands it" asks what breaks without a thing. A custodian's case is
+what it makes possible — *a second reader who is always there*, which is a
+different instrument from one dispatched per diff.
+
+The register is the founder's — radical candor, adversarial in a good way —
+and it is implemented as facts about the seat's situation, because
+`tui/ask.go`'s comment already records what handing a model a manner does:
+told to be warm it performs warmth, told to ask precisely it issues orders.
+Told to be blunt, a seat inflates small findings to sound brave and swallows
+the sentence that costs something, which is "I checked and found nothing." So
+the definition says instead: you did not write this package, your reader is
+the seat that did, nothing you report is a verdict, **being wrong is cheap
+here and being quiet is not**, and an empty pass must be as easy to write as
+a defect.
+
+That last rule is what separates a custodian from `scope-adversary`, which is
+one-sided by design and low-authority because of it. A custodian that only
+produced defects would be the same instrument pointed at code, and its
+silence would stop carrying information.
+
+Staged at one seat rather than four, and not for cost — because nobody yet
+knows whether a custodian finds what a package's builder would not have found
+anyway. **Craft records are separate from the builder's, on the founder's
+reasoning rather than the CEO's**: a shared record inherits the builder's
+account of why the code is the way it is, and that account is the one thing
+the seat exists not to inherit. Adding a hire costs a session boundary — the
+agent registry does not pick up a definition mid-session, so the first pass
+ran through a general-purpose agent with the definition read in.
+
+**(f) TESTED: it found a live bug on its first pass, in code that four seats
+and a green race suite had walked past.**
+
+`Model.fit` returned a **contiguous suffix**: at the first turn it could not
+afford it returned everything newer and stopped. One oversized turn therefore
+discarded itself *and every turn behind it*, and the walk ended with the
+budget nearly whole. Measured in a scratch copy: twenty ordinary bits, a
+50 KB CSV paste, then "so what is wrong with that?" sent the model **one turn
+— the question — with the paste it refers to dropped**, twenty-one affordable
+bits discarded, and 16,032 of 16,384 tokens unspent.
+
+That is D75(a) one layer up and worse: not short of context but short of
+exactly the material the question is about, with nothing saying so. **The old
+doc named the "sends one turn" outcome and defended it**, reading as though
+the surviving turn were the expensive one. It is the cheap one.
+
+An unaffordable turn is stepped over and the walk carries
+on into the older ones. A turn still goes whole or not at all, because
+cutting one forges a quotation the model cannot detect. The new test goes red
+against the suffix version and names the bug when it does — verified by
+reverting `fit` in place and running it.
+
+**(g) RULING, and it is the generalizable half of (f): a selection rule and
+the sentence describing it to a model are one object, and the half written in
+English has no compiler.**
+
+`standingInstruction` said "the oldest part of it is not sent," which was
+true of the suffix version and false the moment a hole can open in the
+middle. It moved in the same commit. **D75(e) caught that same sentence going
+false over a span of weeks; this time it would have gone false in hours**,
+and nothing in the tree would have said so — no test, no type, no gate.
+
+So: **a change to what `Model.fit` selects requires a matching pass over
+`standingInstruction`, in the same change.** This is written into `fit`'s doc
+at the site rather than only here, because a rule stored only in the log is
+one nobody reads at the moment it binds.
+
+**(h) ASSERTED: line numbers come out of the charter's prose; identifiers
+stay. The CEO was wrong and `archivist` was right.**
+
+The three `CLAUDE.md` line citations had gone stale three times. The CEO's
+instinct was that they fail D52(f)'s bar — a figure that goes stale
+repeatedly and changes nobody's decision gets deleted rather than repaired —
+and `archivist` argued the opposite: the deleted line count was a volatile
+aggregate nobody used, whereas "which line does this function sit at" is a
+specific checkable fact a reader might jump to, and the drift is a process
+gap rather than a property of the citation.
+
+Its remedy is better than either option the CEO framed: state the locator as
+the identifier. `frame.quoted` in `tui/render.go` is shorter than
+`tui/render.go:138`, never goes stale, and is what a reader greps anyway —
+D52(f)'s cure applied to the volatile half while keeping the locative value
+`archivist` was right to defend. **The trade being accepted: this works only
+while identifiers are distinctive enough to grep. If one ever collides, the
+number comes back for that citation.**
+
+---
+
+**What would change any of this.** (a) is settled against a source
+with a recorded hash and re-derivable at any time. (c) is arithmetic
+against a deleted constant.
+(d) reverses on a larger sweep — 8 samples an arm is a direction, and the
+invented-menu figures in particular would not survive a strong prior. (e)
+reverses if the custodian's second and third passes return nothing a builder
+would not have found, and that is the test it was staged to run; it also
+reverses if a seat reports it could not do its job because a package boundary
+blocked the right fix, which is the failure mode the CEO first argued against
+and still expects to see. (f) and (g) are held by a test that goes red.
+(h) reverses on an identifier collision.
+
+
+---
+
+## D77 — D1 chose against the industry default without naming it, and the first outside team to try the other road kept most of D1 anyway
+
+**2026-08-18**
+
+**Status:** asserted for the ruling, tested for the source. The Trellis
+readings are re-derived by the CEO against a hashed extraction (see D76(a));
+what is asserted is what they mean for D1.
+
+**(a) The gap, stated plainly.** D1's alternatives-considered are two:
+consolidation replaces and the originals are gone, or an immutable core with
+per-community garbage collection. **Neither of those is what the rest of the
+industry does.** The mainstream answer to "how do you reconstruct a past
+state" is to mutate the row in place and keep a change log — write-ahead
+logs, CDC streams, event sourcing over a mutable projection, temporal tables.
+It is the default in nearly every database a person would reach for, and
+D1 does not mention it.
+
+An alternatives list that omits the mainstream option reads as though the
+mainstream option was not known to the author, which weakens the entry
+whether or not the conclusion was right. D67(f) noticed this and left it
+open; D76(a) confirmed it against the source and corrected the source's
+characterization; this closes it. **D1 is not superseded — it is amended by
+addition, which is what this log does instead of editing.**
+
+**(b) What the alternative actually offers, argued at its strongest.**
+Mutable-plus-changelog is cheaper to write and cheaper to query for "what is
+true now," which is the overwhelmingly common question. It puts the current
+state in one place rather than deriving it, so a reader with no knowledge of
+the system can look at a row and be right. Its indexes are ordinary. And it
+degrades gracefully: a changelog can be truncated to a retention window
+without the current state becoming unreachable, whereas truncating an
+immutable store is the one thing D1 forbids.
+
+Against a system that must answer "what is true now" a thousand times for
+every "what was true then," D1 pays a real cost for a rare question. That
+is the strongest version of the case and this project has not measured it.
+
+**(c) TESTED, and it is the reason the ruling comes out the way it does: the
+one well-resourced team that took the other road kept D1's substrate
+anyway.** Trellis (`arXiv 2606.29823`, Meta Platforms and UMD) is the
+strongest prior art this project has found for reconstructing past state, and
+it is the mutable-plus-changelog design. Its body says: "Nodes are inserted
+once and never deleted, but some fields are mutated in place: backpropagation
+rewrites visit counts and rewards along the ancestor chain, and evolution
+reassigns a node's island."
+
+Objects are insert-once. Three *derived numerics* mutate. And the paper is
+explicit that the immutability is not an observability nicety — "Multi-version
+state is not merely an observability convenience—it is a correctness
+requirement for training." The change log exists to cover the exception, not
+to replace the substrate.
+
+The exception is also where their open problems are, by their own account:
+retraction propagation ("when a source node is retracted or invalidated, the
+training examples derived from it must be retracted too"), bi-temporality,
+and consistency semantics for concurrent tree search. **Every one of those is
+a bill that arrives because state mutates.**
+
+**(d) The ruling. D1 stands, its alternatives list gains the option it was
+missing, and the reason is narrowed to something checkable.** It is this: under D1 a past state
+is reachable by *holding an address*. Under mutable-plus-changelog it is
+reachable by *replaying a field-level log backward to a logical step through
+a query planner*. D14 says reachable means discoverable, not merely
+retrievable, and those two are not the same kind of reachable. That is a
+difference in what a person can do unaided, and it is now sourced rather than
+asserted.
+
+**(e) What this project still cannot say, recorded so nobody later says it.**
+The paper gives **no storage figure, no latency figure and no complexity
+figure** for either design. So the record may say that the one team that chose
+mutation chose it only for derived numerics and paid for the exception in
+named open problems. It may **not** say D1 is cheaper, or that
+mutable-plus-changelog is more expensive. D1's own stated reversal condition
+— "storage cost becoming non-trivial at real agent volume" — remains
+unmeasured, by us and by the one outside source we have.
+
+---
+
+**What would change any of this.** (b) is the live argument and it reverses
+(a) and (d) if anyone measures the read mix: if this system's real traffic is
+overwhelmingly "what is true now," D1 is paying continuously for a question
+almost nobody asks, and `tldr top` reading the whole record is where that
+would first show up as a wall-clock cost. (c) reverses if a later version of
+the Trellis line drops insert-once for its objects, which would turn the one
+supporting data point into a contrary one. (e) closes the moment anybody —
+us or a third party — publishes a storage or latency comparison of the two
+designs at agent volume; until then the silence is the finding.
+
+---
+
+## After D77
+
+D77 is the newest entry published here. As of this push it is also the newest
+entry in the private record, but that is a fact about this moment and not a
+standing one: the private record gains entries between pushes, so by the time
+you read this the log has probably continued somewhere you cannot see.
 
 This paragraph exists because the two kinds of gap are not equally visible.
 A missing number in the middle of a numbered list announces itself — you can
-see that D8 is not there. A log that simply stops does not. Without this
-note, a record ending at D68 would read as though D68 were the last decision
-taken, rather than the last one published, and nothing else in this file
-would tell you otherwise.
+see that D8 and D70 are not there. A log that simply stops does not. Without
+this note, a record ending at D77 would read as though D77 were the last
+decision taken, rather than the last one published, and nothing else in this
+file would tell you otherwise.
+
+Some entries carry an interior lettered gap for the same reason — (a) then
+(c), with no (b). That is the same kind of announced absence, one level down.
