@@ -180,6 +180,8 @@ type outcome struct {
 // with the moment the key was pressed, and a hold decays against
 // [memory.View.Latest] — so what ages a hold here is the conversation moving on,
 // never the wall clock this test is running against.
+const simRoom = 88
+
 func simulate(sc schedule) outcome {
 	s := memory.NewStore()
 	var view, ballots memory.View
@@ -209,10 +211,19 @@ func simulate(sc schedule) outcome {
 			}
 		}
 
-		if foldable(s, view, stay()) > sc.budget {
+		// The program's own cost and the program's own cut. simRoom is the
+		// sentence column a hundred-column terminal leaves, which is the width
+		// every other figure in this project is measured at; every bit this
+		// simulator writes is one line and so costs one row there, which is what
+		// keeps this sweep a sweep of the axes in [schedule] rather than of a
+		// message length it does not vary.
+		cost := func(b memory.Bit) int { return costOf(bitRows(b, simRoom), sc.budget) }
+
+		if foldable(s, view, stay(), cost) > sc.budget {
 			keep := sc.keep
 			if keep == 0 {
-				keep = keepFrom(view.Bits(s), sc.budget/2, sc.budget)
+				bits := view.Bits(s)
+				keep = keepAhead(bits[:len(bits)-1], sc.budget/2-1, sc.budget-1, cost) + 1
 			}
 			if next, ok := view.Fold(s, keep, stay()); ok {
 				view, out.folds = next, out.folds+1

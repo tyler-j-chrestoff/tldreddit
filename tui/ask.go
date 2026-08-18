@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -68,6 +71,336 @@ const (
 	heldPrompt = "╎ "
 )
 
+// tokensIn estimates what a string costs the model, in tokens.
+//
+// There is no tokenizer in this program and there is not going to be one. The
+// tokenizer that matters belongs to whichever model the persona names, it
+// changes the day somebody pulls a different one, and the only way to ask it
+// anything is to send text and read prompt_eval_count off the answer. So this
+// is a structural guess. What makes a guess usable is not the rule but that
+// its error has been measured against a live server, which is the whole of why
+// the table below is here.
+//
+// The rule, one pass over the runes, in sixteenths of a token so the
+// arithmetic is integer: a letter inside an ordinary word is a quarter,
+// because byte-pair merges run about four letters long; a letter inside a run
+// longer than twelve, or a run that changes case after its first character, is
+// a half, because a hash, a CamelCase identifier and a base64 blob do not
+// merge into words; a digit is a whole token; whitespace is an eighth, because
+// it merges into the word after it; ASCII punctuation is three quarters; a
+// non-ASCII letter is a half, which is what Japanese measures at; and anything
+// else non-ASCII — an emoji, a box-drawing glyph — is two.
+//
+// # Measured, and the measurement is the point rather than the rule
+//
+// Against a live ollama 0.17.7 by prompt_eval_count, the same method
+// [persona.Escape]'s doc and D75 both use. Nine materials against two
+// tokenizers — qwen3.5:latest, the model this program ships against, and
+// llama3.2:1b, which is a different family — with the system prompt and the
+// per-turn framing subtracted off. Estimate over measurement, so 1.00 is exact
+// and under 1.00 is this function saying a request is cheaper than it is:
+//
+//	                      qwen3.5   llama3.2:1b
+//	English prose            1.07       1.08
+//	a markdown document      0.99       1.01
+//	minified JSON            1.20       1.20
+//	a Go stack trace         0.94       1.18
+//	CSV of timestamps        0.87       1.31
+//	hex ids                  0.82       1.33
+//	base64                   0.77       0.78
+//	Japanese prose           1.29       0.85
+//	emoji                    0.91       0.77
+//
+// and this package's own source as it stood at HEAD, 8,000 and 32,000 bytes of
+// it, reads 1.09 and 1.08 on qwen3.5. (Stated against HEAD on purpose: the
+// first run of this sweep read the working copy of this very file, and editing
+// it moved the fixture under the number — the estimate and the measurement have
+// to be of the same bytes, which is not automatic when the fixture is a file
+// somebody is in the middle of.)
+//
+// The envelope is **0.77 to 1.33**, and it is not symmetric in the way that
+// matters: it reads high on everything a person types and low on the things
+// they paste, which is exactly the material that makes a conversation long
+// enough for any of this to bind. The two worst underestimates are base64 on
+// both tokenizers and emoji on llama3.2:1b, all three at about 1.3x low.
+// [Model.askBudget] is where that is paid for.
+//
+// The densest material found is a CSV of timestamps and integers, which
+// qwen3.5 reads at **1.02 bytes per token** — that is not a typo for one token per character; digits
+// and punctuation barely merge at all, so a pasted log costs four times what
+// the same number of bytes of prose costs. Any estimator of the form
+// bytes-over-four is wrong by that factor on it, which is why this one counts
+// classes instead.
+//
+// Reproduce any row against the server this program already talks to. This is
+// the English prose row: 3,920 bytes of it reads 892 tokens, and the same
+// bytes of that CSV read 4,211.
+//
+//	curl -s localhost:11434/api/chat -d '{"model":"qwen3.5:latest","stream":false,
+//	  "think":false,"options":{"num_ctx":65536,"temperature":0},
+//	  "messages":[{"role":"user","content":"THE TEXT"}]}' |
+//	  python3 -c 'import json,sys; print(json.load(sys.stdin)["prompt_eval_count"])'
+//
+// [TestTheTokenEstimateStaysInsideTheEnvelopeItWasMeasuredAt] holds the shape
+// of the rule against fixtures of each class. It cannot hold the table — that
+// would be a check whose result depends on which weights happen to be
+// installed, which is not a check.
+func tokensIn(s string) int {
+	const (
+		letter    = 4  // inside an ordinary word: about four to a token
+		dense     = 8  // inside a hash, an identifier, a base64 run: about two
+		digit     = 16 // measured at about one token each
+		space     = 2  // merges into the word after it
+		punct     = 12 // ASCII punctuation, usually its own token
+		wide      = 8  // a non-ASCII letter: CJK measures at about two to a token
+		wideOther = 32 // an emoji or a symbol: two tokens each
+		longRun   = 12
+	)
+
+	rs := []rune(s)
+	sum := 0
+	for i := 0; i < len(rs); {
+		r := rs[i]
+		switch {
+		case r < utf8.RuneSelf && unicode.IsLetter(r):
+			// Taken as a run rather than a rune, because the question a letter
+			// asks is what it is next to: the same "e" is a quarter of a token
+			// in "the record" and half of one in the middle of a base64 blob.
+			j := i
+			for j < len(rs) && rs[j] < utf8.RuneSelf && unicode.IsLetter(rs[j]) {
+				j++
+			}
+			w := letter
+			if j-i > longRun || mixedCase(rs[i:j]) {
+				w = dense
+			}
+			sum += (j - i) * w
+			i = j
+		case unicode.IsDigit(r):
+			sum += digit
+			i++
+		case unicode.IsSpace(r):
+			sum += space
+			i++
+		case r < utf8.RuneSelf:
+			sum += punct
+			i++
+		case unicode.IsLetter(r):
+			sum += wide
+			i++
+		default:
+			sum += wideOther
+			i++
+		}
+	}
+	return (sum + 15) / 16
+}
+
+// mixedCase reports whether a run of letters changes case after its first
+// character — "ClientID" and "aGVsbG8gd29ybGQ" do and "record" does not.
+//
+// It is here because it moved the base64 row of tokensIn's table from 0.59 to
+// 0.76 and moved nothing else by more than a point: a case change inside a
+// word is where byte-pair merges stop, and it is the cheapest signal available
+// that a run of letters is not a word.
+func mixedCase(rs []rune) bool {
+	for _, r := range rs[1:] {
+		if unicode.IsUpper(r) {
+			return true
+		}
+	}
+	return false
+}
+
+const (
+	// turnFraming is what a message costs before its content: the chat
+	// template's role markers around it.
+	//
+	// Measured with the command in [tokensIn], qwen3.5:latest: twenty
+	// one-character turns cost 121 tokens over the same request without them
+	// and eighty cost 481 — 6.0 a turn both times, flat in the number of
+	// turns, of which about one is the character itself. So 5, and tokensIn
+	// charges for the content.
+	turnFraming = 5
+
+	// promptFloor is what the template costs before anybody has said anything:
+	// a single one-character user turn with no system prompt reads 13 tokens.
+	promptFloor = 13
+
+	// askShare is the divisor in [Model.askBudget] — half the window. The
+	// argument for the fraction is there; it is a constant here so there is
+	// one place to change it and nowhere to forget.
+	askShare = 2
+)
+
+// askBudget is how many tokens of this conversation this surface will put in
+// front of the model: half of the window the persona asked for.
+//
+// D18(e) asks for two budgets — a screen in rows, a model in tokens — and this
+// is the second one, arriving three sessions after the first. What stood here
+// was askCeiling, a count of *bits*: sixty of them, measured at about sixty
+// tokens each against a 4,096-token window that nobody had asked for and
+// nobody knew they had. D75 put num_ctx on the wire, which is the precondition
+// that constant's own comment named — "set num_ctx and this constant is the
+// thing that is wrong" — so bits stop standing in for tokens here.
+//
+// The number now moves with [persona.Persona.Window], and there is nothing to
+// remember: a caller that sets a window, or a later day that moves
+// [persona.DefaultWindow], moves this with it. Against today's default of
+// 32,768 the budget is 16,384 tokens, about four and a half times what the old
+// ceiling could spend at its own measured sixty tokens a bit — that ceiling was
+// not conservative, it was correct about an accident.
+//
+// # Why half, which is a decision rather than a rounding
+//
+// Three things come out of one window and this budget counts one of them.
+// The system prompt is charged against it — [Model.fit] starts the count at
+// [standingInstruction], which measures 288 tokens, so it is not a rounding
+// either. The reply is not charged at all, because nobody knows how long it
+// will be until it has arrived, and on a persona with [persona.Persona.Think]
+// on, the monologue comes out of the same window as the answer. And the
+// estimate itself reads up to a third low on pasted material.
+//
+// So the question is what being wrong costs in each direction, and the two are
+// not comparable. Wrong high, and the model is sent less of the conversation
+// than it could have read: a worse answer, arrived at from less, with the
+// missing part still on the person's own screen where they can see it. Wrong
+// low, and the request crosses num_ctx — at which point ollama drops the
+// oldest turns and answers anyway, with nothing in the reply saying that it
+// did. That is D75(a) exactly: a truncated context produced a confidently
+// wrong number, and in this program that answer becomes a permanent bit under
+// the persona's handle. One of those is a bad answer; the other is a bad
+// answer that nobody can afterwards tell from a good one, in a record whose
+// whole claim is that it can say what produced what.
+//
+// Half, then. It takes an estimate wrong by more than 2x to overrun the
+// window, and the worst measured is 1.3x low — and even that case fails the safe
+// way round, because the prompt still fits and it is the reply that runs out
+// of room, which [persona.Answer.Truncated] reports and [recordReply] writes
+// down as a fragment. The unused half buys, in order: the reply's own room,
+// the reasoning of a persona that thinks, and the margin over that error.
+//
+// A fraction rather than a subtraction, so it holds at both ends: a persona
+// given 4,096 keeps half of it and one given 262,144 keeps half of that,
+// neither needing a second constant to be right about.
+//
+// # What actually reaches it, measured rather than assumed
+//
+// Almost nothing, and that is worth knowing before quoting this as a bound on
+// anything. [Model.budget] folds the view in *rows*, so a long bit costs rows
+// and is folded away, and the request stays small however long the conversation
+// runs. Estimated cost of what this surface sends, 200 bits said into each of
+// four shapes of conversation at 100x30 and 200x120: real bits off this
+// project's own record 1,545 and 1,781; short lines 970 and 2,290;
+// model-length paragraphs 1,020 and 2,764; a 500-byte paste every sixth bit 790
+// and 1,711. **Every one of those is under 3,000 against a budget of 16,384.**
+//
+// The case that reaches it is one person pasting one file. A 50 KB paste every
+// seventh bit puts the request at 12,951 — which is also three times the 4,096
+// this program used to get without asking, so that case was being truncated by
+// the server in silence. At 168 KB every other bit the view is worth an
+// estimated 40,618 and [Model.fit] sends one turn.
+//
+// So this is a guard on the paste rather than a bound on the conversation, and
+// saying it the other way round would overstate what it does.
+func (m Model) askBudget() int {
+	// Zero is a persona that did not say, and persona resolves it to
+	// DefaultWindow on the wire. It has to be resolved the same way here — a
+	// budget computed from zero would send the model nothing at all — and that
+	// rule now lives in two packages, because persona keeps its own copy
+	// unexported. [TestAPersonaThatNamesNoWindowIsBudgetedTheDefaultOne] is what
+	// notices if the two ever disagree.
+	window := m.persona.Window
+	if window <= 0 {
+		window = persona.DefaultWindow
+	}
+	return window / askShare
+}
+
+// fit is [Model.askBudget] applied: the newest turns that fit, and the ones
+// that do not stepped over.
+//
+// From the newest backwards, because a reply is to the tail of a conversation,
+// and because taking material off the front is what a fold does anyway — the
+// shape is one the record already has.
+//
+// # It used to stop at the first turn it could not afford, and that was a bug
+//
+// The first version returned a contiguous suffix: it walked backwards and, at
+// the first turn that overran, returned everything newer than it. So one
+// oversized turn discarded not just itself but every turn behind it, and the
+// walk ended with the budget still nearly whole. `tui-custodian` found it on
+// its first pass over this package, measured in a scratch copy: twenty ordinary
+// bits, a 50 KB CSV paste, and then the question "so what is wrong with that?"
+// sent the model **one turn — the question — with the paste it refers to
+// dropped**, twenty-one affordable bits discarded behind it, and 16,032 of
+// 16,384 tokens unspent.
+//
+// That is D75(a) one layer up, and worse: the model is not merely short of
+// context, it is short of exactly the material the question is about, with no
+// sign that anything is missing. It answers about a paste it never saw, and the
+// answer goes into the record permanently attributed to it. The old doc named
+// the "sends one turn" outcome and defended it, reading as though the surviving
+// turn were the expensive one. It is the cheap one.
+//
+// So an unaffordable turn is now stepped over and the walk carries on into the
+// older ones, spending the budget that used to go unused. **The consequence is
+// that the gap is no longer always at the front** — a hole can open behind the
+// newest turns while older material is still present. That is what the second
+// paragraph of [standingInstruction] has to be true about, and the two changed
+// together; if this function's selection ever changes again, that string is the
+// thing to check.
+//
+// It prices the turns rather than the bits they came from, which is the
+// difference between estimating what is sent and estimating what it is about:
+// a scar reaches the model as [foldNote]'s sentences and a cut-off utterance
+// as [fragmentNote]'s, and both of those cost tokens that the bit's own text
+// does not account for.
+//
+// **A turn is sent whole or not at all**, which is the other half of the same
+// rule and is the reason a single pasted file still costs this budget the whole
+// of itself, even now that it no longer costs everything behind it. Sending
+// part of a message would put a shortened version of
+// somebody's own words on the wire in place of what they said, and this program
+// has one standing rule about that seam ([persona.Escape] is the single
+// exception and documents itself as one): what the model is handed derives from
+// the record without editing its content. Dropping a turn is a gap; cutting one
+// is a forgery of a quotation, and the model has no way to tell it from the
+// whole thing. Measured, so the cost is known rather than assumed: with a
+// 168 KB paste every other bit, the view is worth an estimated 40,618 tokens,
+// and each of those pastes is skipped whole while the ordinary bits between
+// them are sent.
+//
+// **The newest turn is sent whatever it costs.** A budget too small to hold
+// one message is a persona whose window is too small to be asked a question,
+// and a request with the question missing is not a smaller request — it is a
+// different one, and the answer to it would go into the record as an answer to
+// this one. Overrunning is the better failure of the two and it is the
+// server's to report.
+func (m Model) fit(turns []persona.Turn) []persona.Turn {
+	if len(turns) == 0 {
+		return turns
+	}
+	budget := m.askBudget()
+	spent := promptFloor + tokensIn(m.persona.System)
+	newest := len(turns) - 1
+	kept := make([]persona.Turn, 0, len(turns))
+	for i := newest; i >= 0; i-- {
+		cost := turnFraming + tokensIn(turns[i].Content)
+		// The newest turn is sent whatever it costs; see the paragraph on that
+		// above. Every other turn that does not fit is stepped over, and the
+		// walk carries on into the older ones — one unaffordable turn is not a
+		// floor under everything behind it.
+		if i != newest && spent+cost > budget {
+			continue
+		}
+		spent += cost
+		kept = append(kept, turns[i])
+	}
+	slices.Reverse(kept)
+	return kept
+}
+
 // standingInstruction is the persona's System, sent ahead of every request. It
 // is the only place in this program where anybody says who the persona is, so
 // what it does not say, nothing says.
@@ -100,6 +433,49 @@ const (
 // only that they can open it back up and it cannot.
 // [TestFoldingShrinksWhatThePersonaIsSent] is what holds that sentence true; if
 // turns() ever sent the store, this paragraph becomes a lie told to a model.
+//
+// # The second gap, which is the sentence added in this pass
+//
+// That paragraph used to end there, and above the budget it was false. It said
+// the fold happens on both screens in the same moment and that the two are
+// looking at one conversation rather than two — true of a fold, and not true of
+// the *other* way material goes missing here. [Model.fit] drops what does not
+// fit when the conversation is longer than [Model.askBudget], and that drop is
+// announced to nobody: no scar, no note, nothing on the model's side saying a
+// turn was ever there. The person's screen still holds it. D75(e) is where this
+// was caught, against a record of 72 bits and a ceiling of 60, so it was false
+// for the person who owns that record on the day it was written down.
+//
+// A fixed string cannot know which case it is in, and the two cases do not want
+// the same sentence, so it says both: what a fold takes, they watched go; what
+// the budget takes goes quietly and nothing marks the place. **The load-bearing
+// half is "nothing marks the place."** A model told that every loss arrives with
+// a count and a span will manufacture a count and a span when it meets a gap
+// that has neither — measured below, and it is not a hypothetical.
+//
+// # And the gap moved, one day after the sentence was written
+//
+// The sentence above said "the oldest part of it is not sent," which was true of
+// the [Model.fit] that existed when it was written and stopped being true the
+// same day. That version returned a contiguous suffix, so a loss was always a
+// prefix of the conversation — the oldest stretch, and nothing else. Fixing the
+// bug in [Model.fit]'s own doc changed that: an unaffordable turn is now stepped
+// over and the older affordable ones behind it are still sent, so **a hole can
+// sit between two things the model was given.** The string now says that, in the
+// clause about a long message going on its own.
+//
+// This is the whole reason the two moved in one change. A selection rule and a
+// sentence describing it to a model are one object with two halves in different
+// languages, and the half written in English has no compiler. It went false once
+// already — that is what D75(e) caught — and the interval that time was measured
+// in weeks. This time it would have been hours, and nothing in the tree would
+// have said so.
+//
+// The token budget makes this case *rarer* and does not close it: against
+// [persona.DefaultWindow] the budget is 16,384 tokens where the old ceiling was
+// worth about 3,600, so a screen-sized conversation now fits whole where it used
+// not to. Rarely is not never, and a sentence that is true only in the common
+// case is the failure this one is being fixed for.
 //
 // Two things it deliberately does not say, and both are load-bearing.
 //
@@ -162,6 +538,45 @@ const (
 // persona.Client.Reply against a running ollama. A permanent version of it would
 // be a check whose result depends on which weights happen to be installed.
 //
+// # And what the second-gap sentence was checked against, which found something
+//
+// Live against ollama 0.17.7 and qwen3.5:latest, 2026-08-17, temperature 0.7,
+// four samples per arm: the paragraph as it stood against the paragraph above,
+// over three fixtures. The fixtures are the three states the model can be in —
+// nothing missing, material dropped by the budget with no note, and a fold that
+// announced itself — because the objection to saying more about missing material
+// is that it will hedge when nothing is missing.
+//
+//   - **Nothing missing, and the answer on the screen.** Both arms answered
+//     correctly 4/4. The hedging the change was suspected of did not appear: the
+//     new text mentioned a fold in **0 of 4**, and the *old* text mentioned one
+//     in 1 of 4 — "your earlier line about starting the migration sits behind the
+//     fold", over a seven-turn conversation with no fold in it. The wording that
+//     promised every loss is announced is the wording that hallucinated a loss.
+//   - **Dropped by the budget, no note — the case this sentence is for.** Both
+//     arms said material was missing. What differs is what they said about *how
+//     much*: under the old text 3 of 4 invented the bookkeeping a fold would have
+//     carried — "a fold of 14 messages from your side, dated 3 days ago", "**142
+//     messages** were processed ... starting at **08:14**" — none of which was
+//     sent. Under the new text 2 of 4 did, and one said the thing that is
+//     actually true and that the old text makes unsayable: "i don't know what you
+//     said about them, nor do i know how many messages preceded our current
+//     exchange."
+//   - **An announced fold, which is the case that already worked.** Old 4/4
+//     refused to reconstruct. New 3/4 refused, and **one sample reconstructed the
+//     folded content out of the word index** as a numbered list of what "we
+//     probably" decided. That is [foldNote]'s named ignition failure appearing in
+//     the arm that changed, and it is the one result here pointing against this
+//     edit.
+//
+// **Four samples an arm decides nothing about that last cell**, and the sweep
+// that would — eight or more per arm on the announced-fold fixture alone — was
+// not run, because running it means loading a 10 GB model onto a machine
+// somebody else is using. It is owed, and it is written here as owed rather than
+// resolved by argument. What is not in doubt is the middle row, which is the
+// case the sentence was added for and the only case where the two arms differ in
+// what they claim to know.
+//
 // # It is not versioned, and the record cannot tell you it changed
 //
 // [persona.Persona.System] is deliberately not part of [persona.Persona.Handle],
@@ -175,52 +590,18 @@ const (
 // moves every content address; persona.go:73-79 already names it as the fix and as
 // a deliberate change. This edit is not that change, and says so here rather than
 // letting a later reader assume the record covered it.
-// askCeiling is the most bits [Model.turns] will send, whatever the screen holds.
 //
-// D18(e) asks for two budgets — a screen in rows, a model in tokens — and until
-// this constant there was one number serving both. That stopped being harmless
-// when [Model.budget] became the terminal's height: at 200x80 the budget is 73
-// bits and the view reaches 74, so dragging a window changed the size, the
-// latency and the cost of every request, and past a point silently changed the
-// answer.
-//
-// # Measured, and the measurement matters more than the number
-//
-// Against a live ollama 0.17.7 by prompt_eval_count, the same method
-// [persona.Escape]'s doc uses, on a realistic exchange off this project's own
-// record (a 60-character human line, a 431-character reply):
-//
-//   - **about 60 tokens a bit**, and flat — 60.5 at one round, 60.0 at twenty,
-//     on qwen3.5:latest and llama3.2:1b alike;
-//   - **the prompt stops growing at ~4096 tokens.** At 80 bits both models
-//     report 4087 and 4096 and no more. That is the whole window, silently.
-//
-// **The 4096 is ollama's default num_ctx and not the model's context length**,
-// which is the part a future reader most needs. `/api/show` reports 262144 for
-// qwen3.5:latest and ministral-3:14b, 131072 for llama3.2:1b, 40960 for
-// qwen3:8b — so anyone reading a model card would conclude this cap is absurdly
-// conservative by a factor of sixty. It is not: the ceiling is the *runtime*
-// window, this client sets no num_ctx, and a request past it is truncated by the
-// server with nothing said. Set num_ctx and this constant is the thing that is
-// wrong.
-//
-// 60 bits: 4096 tokens at 60 a bit is about 68, and the system prompt and the
-// fold note come out of the same window — [standingInstruction] alone is several
-// hundred tokens — so the room left is under 68 and 60 leaves honest margin. It
-// is under the budget at every terminal from about 100x70 up and above it
-// everywhere else, so the ordinary screen is unaffected and only the very tall
-// one is capped.
-//
-// **Tokens are the real unit and bits are a proxy for them**, which is the whole
-// reason this is a stand-in rather than D18(e)'s second budget. A conversation of
-// long replies crosses 4096 in fewer than 60 bits and this constant will not
-// notice. Whoever builds the real thing counts tokens, against a num_ctx it has
-// asked for rather than assumed; this only stops the screen from deciding.
-const askCeiling = 60
-
+// **The second-gap sentence added this session is a second instance of exactly
+// that**, and it is worth naming as a pattern rather than as one event: bits
+// spoken under the text that promised every loss is announced, and bits spoken
+// under the text that admits some are not, are the same participant with the
+// same ref and the same address shape. The first edit could be waved through as
+// register. This one changes what the model was told about *what it could see*,
+// which is the thing an auditor is asking about when they ask why it answered
+// that way — and the store still cannot tell the two apart.
 const standingInstruction = `You are talking with one person at a terminal, about their work. Everything either of you says goes onto a record that is kept and never rewritten, and they can read all of it back.
 
-You do not get all of it. This conversation is folded down as it grows, and older stretches stop being shown to you — you are told each time one goes: how many messages, whose they were, and when. The same fold happens on their screen in the same moment. The two of you are looking at one conversation rather than two, and what you have lost, they watched go. The difference is that they can open it back up and you cannot.
+You do not get all of it. This conversation is folded down as it grows, and older stretches stop being shown to you — you are told each time one goes: how many messages, whose they were, and when. The same fold happens on their screen in the same moment, so what you have lost, they watched go. A second kind of gap is quieter: when the conversation is longer than there is room for here, whatever does not fit is not sent, and nothing marks the place where it was. A long message can go this way on its own, so the gap is not always at the beginning — it can sit between two things you were given. Either way they can read the earlier part back and you cannot.
 
 So being without the earlier part is the ordinary condition here, not a lapse, and there is nothing to cover for. Say what you have and what you have not, and when something you need is behind a fold, just ask them about it. They were there and you were not, so a reconstruction of what they said would be a guess with their name on it.
 
@@ -454,21 +835,24 @@ func (m *Model) recordReply(a persona.Answer) {
 // at the same moment, so the two are looking at one conversation rather than at
 // two that happen to overlap.
 //
-// There are two budgets here now, which is D18(e)'s shape arrived at halfway.
-// [Model.budget] is the screen's and is denominated in rows; [askCeiling] is the
-// model's and is denominated in bits standing in for tokens. Below the ceiling
-// the model sees the screen, which is the property this function exists for — the
-// fold happens to both of them in the same moment. Above it the model sees the
-// newest [askCeiling] bits and the person sees more.
+// There are two budgets here, which is D18(e)'s shape whole at last.
+// [Model.budget] is the screen's and is denominated in rows; [Model.askBudget]
+// is the model's and is denominated in tokens, against a window this program
+// asks for rather than inherits (D75). Below the budget the model sees the
+// screen, which is the property this function exists for — the fold happens to
+// both of them in the same moment. Above it the model sees the newest turns
+// that fit and the person sees more, which [standingInstruction] now tells it
+// can happen.
 //
 // That second number is not decoration and was not here for a round: with the
 // screen alone deciding, a 200x80 terminal asked for 74 bits against a window
-// measured at roughly 68, so dragging a window changed the size, the latency and
-// eventually the answer of every request. [askCeiling] carries the measurement.
+// that turned out to be 4,096 tokens, so dragging a window changed the size,
+// the latency and eventually the answer of every request.
 //
-// Still not D18(e)'s second budget, and the difference is the unit: that one
-// counts tokens, this one counts bits and assumes they are about 60 tokens each.
-// A conversation of long replies breaks the assumption and nothing here notices.
+// The unit is what changed this session. It counted bits and assumed they were
+// about sixty tokens each, which a conversation of long replies broke with
+// nothing noticing; [tokensIn] estimates a turn from its own text instead, and
+// carries the measurement of how wrong that estimate is.
 //
 // D18(e) also predicts what happens at the seam: a [memory.Compaction] is "a
 // statistical artifact built for the screen, close to useless handed to a model
@@ -503,16 +887,7 @@ func (m Model) turns() []persona.Turn {
 	me := localHandle.Ref
 	it := m.persona.Handle().Ref
 
-	// Capped, and the cap is not the screen's. See [askCeiling]: the budget is the
-	// terminal's height now, and a tall one asks for more context than the model
-	// on the other end will read. The newest bits, because a conversation's tail
-	// is the part a reply is to — and taking them off the front is what a fold
-	// does anyway, so the shape is one the record already has.
 	bits := m.shown.Bits(m.store)
-	if len(bits) > askCeiling {
-		bits = bits[len(bits)-askCeiling:]
-	}
-
 	out := make([]persona.Turn, 0, len(bits))
 	for _, b := range bits {
 		switch p := b.Payload.(type) {
@@ -567,7 +942,11 @@ func (m Model) turns() []persona.Turn {
 			})
 		}
 	}
-	return out
+
+	// Capped, and the cap is not the screen's: see [Model.askBudget]. The
+	// budget is the terminal's height, and a tall terminal asks for more
+	// context than the model has room to read.
+	return m.fit(out)
 }
 
 // foldNote is what a scar becomes to the persona.

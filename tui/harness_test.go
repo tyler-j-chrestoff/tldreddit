@@ -1065,3 +1065,190 @@ func TestHarnessShort(t *testing.T) {
 		fmt.Fprint(os.Stdout, screen(d, "a reply that ran out of room"))
 	}
 }
+
+// reply is the founder's own case, reconstructed: a model asked for a Go program
+// and answering the way models answer — headings, a bulleted list, bold spans, a
+// fenced block of thirty-odd lines, and a second fence for the output. Before the
+// document path existed this arrived on screen as one unbroken sentence with the
+// whole program flattened into it, which is the report that ordered this work.
+const reply = "### Reversing a slice in place\n\n" +
+	"There are three things worth saying about this:\n\n" +
+	"- it swaps from **both ends inward**, so it allocates nothing\n" +
+	"- it is generic over `T`, so one function covers every element type\n" +
+	"- the loop condition is `i < j`, not `i != j`, which matters for odd lengths\n\n" +
+	"```go\npackage main\n\nimport \"fmt\"\n\n" +
+	"// reverse turns s around in place. It allocates nothing and it is\n" +
+	"// stable for the empty slice and for a slice of one.\n" +
+	"func reverse[T any](s []T) {\n" +
+	"\tfor i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {\n" +
+	"\t\ts[i], s[j] = s[j], s[i]\n" +
+	"\t}\n}\n\n" +
+	"func main() {\n" +
+	"\txs := []int{1, 2, 3, 4, 5}\n" +
+	"\treverse(xs)\n" +
+	"\tfmt.Println(xs)\n\n" +
+	"\tnames := []string{\"ada\", \"grace\", \"alan\"}\n" +
+	"\treverse(names)\n" +
+	"\tfmt.Println(names)\n" +
+	"}\n```\n\n" +
+	"Running it prints:\n\n" +
+	"```text\n[5 4 3 2 1]\n[alan grace ada]\n```\n\n" +
+	"The generic version compiles to the same code the `[]int` version would.\n"
+
+// TestHarnessDocument prints the one bit the caret has opened, at the two sizes
+// the argument is made on: a hundred columns, where the code block has room to
+// read, and a narrow terminal where the wrap starts to bite. Both in TrueColor
+// and with every colour taken away, because the claim this style makes is that
+// the structure is carried by marks and space and that colour is spending
+// nothing load-bearing.
+func TestHarnessDocument(t *testing.T) {
+	if os.Getenv("HARNESS") == "" {
+		t.Skip("set HARNESS=1")
+	}
+
+	for _, size := range [][2]int{{100, 30}, {46, 30}} {
+		m := talk(sized(size[0], size[1]), 4)
+		m.say(memory.Handle{Ref: "ollama/llama3", Display: "coordinator-7"}, reply)
+		fmt.Fprint(os.Stdout, screen(m, "a document under the caret"))
+		fmt.Fprint(os.Stdout, profiled(m, "the same document, no colour", colorprofile.NoTTY))
+
+		// The caret moved off it, which is the frame nearly every row on this
+		// surface is: the document is one row again, and what that row says is
+		// [lede]'s. It read `### Reversing a slice in place There are three things
+		// worth saying about this: - it swaps from **both en…` until this pass —
+		// the source of a document rather than anything anybody said.
+		m.move(-1)
+		fmt.Fprint(os.Stdout, screen(m, "the same document, one row, caret above it"))
+		fmt.Fprint(os.Stdout, profiled(m, "the one row, no colour", colorprofile.NoTTY))
+	}
+}
+
+// TestHarnessDocumentCooling is the document on a row the next fold is taking,
+// which is the frame two channels have to survive at once: the block drops every
+// colour it has ([markdown]'s quiet arm) and steps [step] columns left as one
+// object, and the row above it that is staying does neither.
+func TestHarnessDocumentCooling(t *testing.T) {
+	if os.Getenv("HARNESS") == "" {
+		t.Skip("set HARNESS=1")
+	}
+
+	for _, size := range [][2]int{{100, 30}, {46, 30}} {
+		m := sized(size[0], size[1])
+		m.say(memory.Handle{Ref: "ollama/llama3", Display: "coordinator-7"}, reply)
+		// Up to the trigger and not past it, so the document is still in the view
+		// and the lookahead has already named it as the next fold's. Counted
+		// against the load rather than against a number of bits, because the
+		// document is charged half a screen ([Model.rows]) and the trigger arrives
+		// far sooner than it used to — a fixed count here folded the document away
+		// and left this frame with no document in it at all.
+		handles := []memory.Handle{{Ref: "local", Display: "me"}, {Ref: "ollama/llama3", Display: "coordinator-7"}}
+		for i := 0; m.foldable() < m.budget(); i++ {
+			m.say(handles[i%2], lines[i%len(lines)])
+		}
+
+		// Walk the caret back onto the document so the block is drawn whole while
+		// it cools; without that it is one row and the fade has nothing to carry.
+		for range len(m.shown.Bits(m.store)) {
+			at := m.caret()
+			if b, ok := m.store.Get(at); ok {
+				if u, said := b.Payload.(memory.Utterance); said && structured(u.Text) {
+					break
+				}
+			}
+			m.move(-1)
+		}
+		fmt.Fprint(os.Stdout, screen(m, "a cooling document"))
+		fmt.Fprint(os.Stdout, profiled(m, "a cooling document, no colour", colorprofile.NoTTY))
+
+		// And one more thing said, which is the fold. It arrives here because the
+		// document is charged half a screen rather than one row: measured on this
+		// conversation at 100x30, the first fold used to wait for 24 writes and now
+		// comes after 14.
+		m.say(memory.Handle{Ref: "local", Display: "me"}, "so the budget is rows now")
+		fmt.Fprint(os.Stdout, screen(m, "the fold that used to wait ten more writes"))
+	}
+}
+
+// TestHarnessDocumentFloor sweeps the width a document is drawn into against the
+// plain wrap it replaced, in rows. It is the sweep [markdown]'s own doc cites for
+// the negative result that there is no width at which refusing to render is
+// better — the document costs rows at every width and carries structure at every
+// width, and where it finally becomes rubble the wall is rubble and more of it.
+func TestHarnessDocumentFloor(t *testing.T) {
+	if os.Getenv("HARNESS") == "" {
+		t.Skip("set HARNESS=1")
+	}
+	m := talk(sized(100, 30), 4)
+	m.say(memory.Handle{Ref: "ollama/llama3", Display: "coordinator-7"}, reply)
+	f := m.frame()
+
+	// The plain arm is [wrapped], which is what the fallback actually is. It used
+	// to be the flatten spelled out here inline, and that stopped being true the
+	// day the fallback started keeping a message's own lines — a comparison
+	// against a renderer nobody uses answers a question nobody asked.
+	fmt.Fprintln(os.Stdout, "── the document path against the plain wrap, by width ──")
+	for w := 1; w <= 40; w++ {
+		lines, doc := markdown(reply, w, false)
+		_ = f
+		fmt.Fprintf(os.Stdout, "width %3d  document=%-5v rows=%3d   plain rows=%3d\n",
+			w, doc, len(lines), len(wrapped(reply, w)))
+	}
+}
+
+// pasted is a person's own text arriving through the composer with no markdown
+// in it anywhere: Go source, tabs and blank lines and all. It is the material
+// the founder actually pasted, cut to the height a fixture wants — memory's own
+// Utterance and the method under it.
+//
+// There is no fence, no heading and no list item in it, so [structured] says
+// prose and it takes [wrapped] rather than [markdown]. That is the point of
+// having it here: the plain path is a drawing path now, with an indent, a wrap
+// and a blank row in it, and until this fixture existed there was no frame of it
+// anywhere.
+var pasted = strings.Join([]string{
+	"// Utterance is something said: the hot, uncompacted form of a bit's content.",
+	"type Utterance struct {",
+	"\t// Text is what was said, as said.",
+	"\tText string",
+	"",
+	"\t// Truncated marks an utterance whose speaker did not get to finish — a",
+	"\t// model that ran out of context room mid-sentence, not one that stopped",
+	"\t// because it was done.",
+	"\tTruncated bool",
+	"}",
+	"",
+	"func (u Utterance) kind() string {",
+	"\tif u.Truncated {",
+	"\t\treturn \"fragment\"",
+	"\t}",
+	"\treturn \"utterance\"",
+	"}",
+}, "\n")
+
+// TestHarnessPaste is the founder's paste under the caret, at the two sizes this
+// surface is looked at, in colour and with none.
+//
+// What to look at, in order: the lines are the speaker's own lines; the struct
+// body is indented four columns from the type above it; the blank line between
+// the fields is a blank row; at 46 the long comment lines wrap and every
+// continuation carries the indentation of the line it continues. Before this
+// pass the whole thing was one paragraph with every newline and every tab spent.
+//
+// And the row above the caret's is what a person sees for the same bit when the
+// caret is not on it — one row, [lede]'s, whitespace collapsed like every other
+// cut on a row that has no second line.
+func TestHarnessPaste(t *testing.T) {
+	if os.Getenv("HARNESS") == "" {
+		t.Skip("set HARNESS=1")
+	}
+
+	for _, size := range [][2]int{{100, 30}, {46, 30}} {
+		m := talk(sized(size[0], size[1]), 4)
+		m.say(memory.Handle{Ref: "local", Display: "me"}, pasted)
+		fmt.Fprint(os.Stdout, screen(m, "a paste with no markdown in it, under the caret"))
+		fmt.Fprint(os.Stdout, profiled(m, "the same paste, no colour", colorprofile.NoTTY))
+
+		m.move(-1)
+		fmt.Fprint(os.Stdout, profiled(m, "the same paste, one row, caret above it", colorprofile.NoTTY))
+	}
+}

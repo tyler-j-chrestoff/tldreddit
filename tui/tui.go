@@ -171,7 +171,24 @@
 // into. Under it the row is drawn cut, as it always was, which is a degradation
 // somebody can see rather than a screen of ellipses.
 //
-// Four things it does not do, all of them true today:
+// **And a message written as a document is drawn as one.** Headings keep their
+// hashes and sit on rows of their own, list items open with a bullet, and a
+// fenced block is indented two columns clear of the prose and syntax coloured
+// where the terminal has colour to give — see [markdown], which owns the whole
+// decision including when not to make it. It applies only to a message carrying a
+// block-level mark, because rendering markdown *spends* a speaker's punctuation
+// and this block's contract is that the record's own characters are on the
+// screen. Ordinary prose takes the path it always took.
+//
+// That is the same argument as everything above it, one level up: the person at
+// the keyboard was reading less of the record than the model was. A reply written
+// as a heading, a list and forty lines of Go arrived on this screen as a single
+// unbroken sentence — the store had all of it, [Model.turns] handed all of it to
+// the model, and the view was the only thing that had lost the shape. It was
+// found by using the program rather than by reading it, which is the only way a
+// defect of this kind is ever found.
+//
+// Six things it does not do, all of them true today:
 //
 //   - A bit behind a scar is one cut line inside its receipt and cannot be
 //     opened there — the caret walks the view, and a receipt's rows are not in
@@ -183,9 +200,31 @@
 //     into is the row it already draws — and ctrl+u does nothing on that screen,
 //     so the one row whose subject is absent material is the one row there that
 //     cannot be followed to it.
-//   - The line breaks a message was written with are gone. [saidWhole] wraps the
-//     collapsed text, so every word the record holds is on the screen and its
-//     shape is not.
+//   - **A message's line breaks are kept only when it was written as a
+//     document.** [markdown] draws a bit with a fence, a heading or a list in it
+//     as what it is — headings, bullets and an indented code block on rows of
+//     their own, syntax coloured where there is colour to be had. Anything else is
+//     still the collapsed wrap [saidWhole] has always done, so a person's own
+//     paragraph breaks in an ordinary message are gone. The gate is deliberate and
+//     the argument for it is in [markdown]: rendering spends punctuation, and this
+//     block's contract is that the record's own characters are on the screen.
+//     What is genuinely open is the middle case — a two-paragraph message with no
+//     block mark in it reads as one paragraph.
+//   - **One bit can now be taller than the screen.** The row budget counts bits
+//     ([Model.budget]) and always could be exceeded by one bit's wrapping; a
+//     forty-line code block makes that routine rather than marginal. Nothing new
+//     was built for it: [Model.revealBlock] already frames a block too tall to fit
+//     from its beginning, [Model.edge] already counts the rows past either end,
+//     and moving the caret off the bit closes it — so the affordance is the caret
+//     the person is already using and it costs no key. What is unresolved is
+//     whether such a reply should have been *one bit at all*, which is a question
+//     about the record rather than about this surface.
+//   - **The depth of a heading is not drawn.** Headings are drawn in capitals
+//     with a blank row under them and no hashes, which says "heading" in
+//     characters and therefore survives the fade and a terminal with no colour —
+//     but capitals cannot carry a count, and indenting each level's body was
+//     rejected because it spends two columns of every prose line and collides
+//     with the fade's own step. The record keeps the depth.
 //   - A tall block open while a fold fires underneath it is a frame nobody has
 //     looked at. The order the two are framed in is stated in [Model.sync]; what
 //     that looks like is not.
@@ -240,6 +279,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"charm.land/bubbles/v2/key"
@@ -598,12 +638,30 @@ func (m Model) Views() (shown, votes memory.View) { return m.shown, m.votes }
 // cannot be reproduced, and reproducibility is the only reason to keep a record
 // at all. 0.7 is ollama's own default for most models, chosen so that the
 // transcript looks like what the same model gives anyone else.
+//
+// Think is written down for that same reason and states the same false the zero
+// value would have given. It is not redundant: the rule is that a setting which
+// shapes what the model says gets recorded at the call site, and false is a
+// choice here rather than an absence. It buys the surface's speed — with
+// thinking on, DefaultModel spent eight to sixty-six seconds and a few thousand
+// characters of monologue before answering, against about a quarter-second with
+// it off. That range is one one-line question at temperature 0, not a turn from
+// this surface, which carries whatever fits [Model.askBudget] — half of
+// [persona.Persona.Window], so 16,384 tokens at today's default rather than the
+// 4,096 this program used to get without asking; the real cost here is larger
+// and nobody has measured it. Thinking would also come out of that same window,
+// which is one of the things the unspent half is for.
+// Turning it back on is a live comparison nobody has
+// run; [persona.Persona.Think] carries what to expect of that arm, including
+// that an empty answer after a long monologue is a known shape and not a
+// regression.
 func defaultPersona() persona.Persona {
 	return persona.Persona{
 		Name:        speakerName(persona.DefaultModel),
 		Model:       persona.DefaultModel,
 		System:      standingInstruction,
 		Temperature: 0.7,
+		Think:       false,
 	}
 }
 
@@ -1623,7 +1681,7 @@ func (m Model) scars() int {
 // schedule with it and must count the way the program counts. Restating the
 // rule in a fixture is how a measurement comes to describe a program nobody is
 // running.
-func foldable(s *memory.Store, v memory.View, stay memory.Stay) int {
+func foldable(s *memory.Store, v memory.View, stay memory.Stay, cost func(memory.Bit) int) int {
 	spared := v.Sparing(s, stay)
 
 	n := 0
@@ -1634,13 +1692,17 @@ func foldable(s *memory.Store, v memory.View, stay memory.Stay) int {
 		if spared[b.ID] {
 			continue
 		}
-		n++
+		n += cost(b)
 	}
 	return n
 }
 
-// foldable is [foldable] over this model's own view and votes.
-func (m Model) foldable() int { return foldable(m.store, m.shown, m.stay()) }
+// foldable is [foldable] over this model's own view, votes and columns, counted
+// in the rows a bit draws rather than in bits — see [Model.rows].
+func (m Model) foldable() int {
+	room := m.room()
+	return foldable(m.store, m.shown, m.stay(), func(b memory.Bit) int { return m.rows(b, room) })
+}
 
 // pressured is the fold trigger: more material a fold could take than the record
 // holds before it cools.
@@ -1689,46 +1751,160 @@ func (m Model) pressured() bool { return m.foldable() > m.budget() }
 //     row", and this comment said one row at every size until a review measured
 //     the other end.
 //
-// Either way it can be much further once holds accumulate, which is the state
-// [Model.blocked] names. The arrows [Model.edge] draws say how much is past the
-// edge in both directions, which is the whole of what is done about it.
+// **Both of those figures were measured on a record in which one bit is one row,
+// and that stopped being true when [markdown] shipped** — which is what
+// [Model.rows] now closes. The load against this budget is counted in the rows a
+// bit draws rather than in bits, so a fenced answer that is 36 rows at 100x30
+// costs half a screen and a one-line message costs one. Measured on this
+// package's own fixture at that size: the first fold used to arrive after 24
+// writes and arrives after 14, and the worst hot view went from 129 rows of
+// material to 24.
 //
-// Counting rows instead was measured and refused: with `len(view) > budget` as
-// the trigger, held bits keep the view permanently over its budget and every
-// single write fires a fold that takes one run — 302 folds over 400 bits at one
-// upvote in five, against 47. That is a scar per bit, and a receipt that stands
-// for almost nothing is worse than a row past the edge. [Model.foldable]'s own
-// doc is where the reason lives; this is the same argument arriving from the
-// other side.
-//
-// # Three things it does not count, each of which would fold for a reason that is
-// not about the record
-//
-// **The caret's own row.** It is the one row on this surface with a variable
-// height — [transcript] draws it whole — so a budget that counted rows as drawn
-// would make the pressure on the record a function of where a cursor is parked:
-// move the caret onto a long answer and the view crosses its budget and folds,
-// move it off and the view is spared. That is memory forgetting because of a
-// navigation gesture, and no gauge could give it an honest antecedent, because
-// the gauge would be reporting the cursor. Measured, it is not a small
-// difference: at 60x14 a caret on a 490-character reply draws eleven rows where
-// every other bit draws one. So a bit costs one row here whatever it draws, and
-// [Model.foldable] is what does the counting.
-//
-// **The note under the transcript** — a request in flight, a failure, a save that
-// did not reach disk. Counting those rows would fold the record because the disk
-// is broken, and the block that says so is the last thing on this screen that
-// should cost anything. It pushes the transcript up instead, which the edge
-// arrows already report.
-//
-// **A resize.** Nothing folds when the terminal changes size: [Model.pressured]
-// is asked after a write and on ctrl+k, and never in the size branch of
-// [Model.update]. Making a window shorter raises the gauge and fades the rows the
-// next fold would take — the antecedent arrives immediately and the fold waits
-// for somebody to say something. Dragging a window is not a memory operation, and
-// [TestResizingTheTerminalNeverFoldsTheRecord] is what keeps it from becoming
-// one.
+// What the budget still is not, exactly: a promise that the view fits the frame.
+// A bit is charged at most half a screen ([costOf]), so a view of two documents
+// is charged a screen and draws two of them; the bound is about two screens
+// rather than one, and buying the tighter bound costs two decisions this surface
+// already made — `docs/DEBT.md` has the numbers.
 func (m Model) budget() int { return max(m.viewport.Height(), coolFloor) }
+
+// room is the column a bit's sentence is drawn into, asked of the same function
+// the renderer asks ([columns]) rather than worked out here.
+//
+// It is a function of the view's own handles, the terminal's width and whether
+// anybody has voted, and of nothing else on the frame — in particular not of the
+// absorbing set, which is what makes it safe to ask before the fold's arithmetic
+// has run. A room that depended on the fade would be a room that depended on the
+// budget that depends on it.
+func (m Model) room() int { return m.roomFor(m.shown.Bits(m.store)) }
+
+// roomFor is [Model.room] against a list of bits the caller names, because the
+// answer is a property of *which* bits are on screen: the handle column is as
+// wide as the widest name actually present ([widest]), so a speaker arriving
+// under a longer name narrows every sentence on the surface at once.
+//
+// That is why [Model.keep] asks for the room of the view *without* the bit just
+// written, exactly as it asks for that view's own boundary. Measured before it
+// did: at 60x14, where the columns are tightest, a conversation of documents
+// absorbed six to eight bits over three hundred writes that had never been drawn
+// cooling — not because the boundary rule disagreed with itself, but because the
+// arriving bit widened the handle column, which shortened every row, which made
+// every bit taller than it had been on the frame that named the fold. One reading
+// of one arrangement, which is [frame]'s own argument arriving in the arithmetic.
+func (m Model) roomFor(bits []memory.Bit) int {
+	votes := memory.Tally(m.store, m.votes)
+
+	names, voted := make([]string, 0, len(bits)), false
+	for _, b := range bits {
+		if _, cold := b.Payload.(memory.Compaction); cold {
+			continue
+		}
+		names = append(names, b.From.Display)
+		if votes[b.ID][localHandle] != 0 {
+			voted = true
+		}
+	}
+	_, _, room := columns(names, m.width, voted)
+	return room
+}
+
+// costOf is what one bit is charged against the budget: the rows it draws, never
+// more than half a screen.
+//
+// **The cap is a bound rather than a fudge, and the number is not a taste.** A
+// bit charged more than the keep target can never sit inside a kept tail, and two
+// things break the moment it cannot. The cut stops moving back to the last thing
+// the human said, because every tail reaching back that far is already over the
+// budget — which strands an answer from its question, the exact defect
+// [Model.keep] exists to prevent. And the fold's window collapses to a single
+// bit, which D32 refuses, so the footer prints `held` on a record nobody has
+// voted in.
+//
+// Measured over 200 bits at a 23-row budget with a fenced 36-row answer every
+// sixth, against the same fixture with the cap at the whole budget: **0.0% of
+// frames opening on an orphaned answer and 0.0% printing `held`, against 16.5%
+// and 33.0%.** Both are 0.0% today, so this is the cap that costs nothing either
+// of those two decisions bought.
+//
+// What it does not buy is a view that fits the screen, and that is stated rather
+// than hidden: the same sweep leaves the worst view at 46 rows of material
+// against a 23-row screen, down from 129. This bounds the view at about two
+// screens rather than at one. Bounding it at one is the arm that costs the two
+// figures above, and that trade is a decision rather than an arithmetic — it is
+// written up in `docs/DEBT.md` with its numbers.
+func costOf(rows, budget int) int { return min(rows, max(budget/2, 1)) }
+
+// bitRows is a bit's height in rows at a given sentence room, uncapped and
+// unmemoized: the rows [saidWhole] would draw for it.
+//
+// A fold is one row by the same rule [saidWhole] states — a scar has no message
+// of its own, so it is a reference and not a block.
+//
+// It is asked of [drawn], which is what the renderer draws, so the budget and the
+// screen cannot disagree about a bit's height. A second opinion here would size
+// the fold against a screen nobody is looking at, and the disagreement would be
+// invisible: both numbers are plausible and neither is printed.
+func bitRows(b memory.Bit, room int) int {
+	u, said := b.Payload.(memory.Utterance)
+	if !said {
+		return 1
+	}
+	return len(drawn(u, room, false))
+}
+
+// rows is how many rows a bit costs this model's budget.
+//
+// # Why a bit is not one row any more
+//
+// [Model.budget] is a screen in rows (D58(b)) and [Model.foldable] counted bits,
+// and those were one number stated twice for as long as every bit drew one row.
+// A message written as a document does not: measured at 100x30, a fenced Go
+// answer is 36 rows against a viewport of 23. So a forty-row block sat in the
+// view as a single unit of load, the gauge read a fifth full over a screen that
+// could not hold a quarter of what it held, and no fold fired.
+//
+// # It is the rows the bit *is*, never the rows it happens to be drawing
+//
+// [transcript] draws one row per bit except under the caret, so the rows on the
+// screen are a fact about where a cursor is parked. Counting those would make the
+// pressure on the record a function of a navigation gesture — move the caret onto
+// a long answer and the record folds, move it off and the record is spared —
+// which is memory forgetting because somebody looked at something, and no gauge
+// could give it an honest antecedent because the gauge would be reporting the
+// cursor. That refusal is [Model.budget]'s, it is older than this function, and
+// this function is written to keep it: the height asked for here is the height
+// the bit would draw for anybody, at this width, caret or no caret.
+//
+// # The memo, and why it cannot go stale
+//
+// [markdown] runs goldmark and chroma, which is milliseconds, and this is asked
+// of every bit in the view several times a frame. The key is the bit's content
+// address, so an entry can never describe different content; the whole table is
+// dropped when the room changes, which is what a resize does and what keeps it
+// from growing an entry per width ever seen.
+func (m Model) rows(b memory.Bit, room int) int {
+	if _, cold := b.Payload.(memory.Compaction); cold {
+		return 1
+	}
+
+	heightMu.Lock()
+	n, seen := heights[b.ID]
+	if heightRoom != room {
+		heightRoom, heights, seen = room, map[string]int{}, false
+	}
+	if !seen {
+		n = bitRows(b, room)
+		heights[b.ID] = n
+	}
+	heightMu.Unlock()
+
+	return costOf(n, m.budget())
+}
+
+var (
+	heightMu   sync.Mutex
+	heightRoom = -1
+	heights    = map[string]int{}
+)
 
 // keep is how many bits stay hot through a fold: half the budget, moved back to
 // the last thing the human said.
@@ -1801,7 +1977,80 @@ func (m Model) budget() int { return max(m.viewport.Height(), coolFloor) }
 // function of the view's own speakers, so two processes over one record fold it
 // the same way at the same terminal height.
 func (m Model) keep() int {
-	return keepFrom(m.shown.Bits(m.store), m.budget()/2, m.budget())
+	bits := m.shown.Bits(m.store)
+	if len(bits) == 0 {
+		return 1
+	}
+	return m.keepAhead(bits[:len(bits)-1], 1) + 1
+}
+
+// keepAhead is the cut this surface has already drawn: how many bits at the end
+// of these run on unfaded.
+//
+// # One statement of the boundary, asked twice, instead of two that agree today
+//
+// The fade names the window the *next* write will fold, on a view one bit shorter
+// than the one that fold will see, and until this it did so by running the same
+// search with its base and its ceiling each lowered by one — an identity that
+// holds exactly while the base is a count of bits, and stops holding the moment
+// the base is a number of rows, because the row the next bit will add is whatever
+// somebody types next and is not knowable now. The direction it fails in is the
+// forbidden one: the fold would take more than was faded.
+//
+// So the arithmetic is turned around. [Model.absorbing] asks this of the drawn
+// view and fades what it names; [Model.keep] asks it of the view *without its
+// newest bit* and keeps one more. A view only ever grows at the end, so those two
+// name the same boundary between the same two bits — by construction rather than
+// by an identity somebody has to re-derive. **The fold takes exactly the window
+// the screen last drew as going**, which is the promise this surface makes
+// everywhere else, stated for once as the code rather than as a comment.
+//
+// ctrl+k is the one caller with no new bit in front of it, and there this
+// over-predicts by one bit rather than under-predicting: the search on a view one
+// short can only reach back one further, so what ctrl+k folds is a subset of what
+// was faded. That is the safe direction and it is the same one the old lookahead
+// erred in.
+//
+// # What decides the range, in rows
+//
+// Keep at least half a screen and never more than a whole one, then move the cut
+// back to the last thing the human said if there is one in that range —
+// [keepFrom] is that search and its argument is [Model.keep]'s. Half a screen
+// because that is the ratio this surface folded at before any of this, and a
+// whole screen because past it the fold storms: after a fold keeping k the view
+// is a scar plus k, [Model.foldable] skips the scar, so a kept tail already over
+// the budget leaves the trigger true and every write folds again.
+//
+// The clamp that keeps the fold's window at two bits or more (D32) is
+// [keepFrom]'s and is applied to whichever list it is handed, which is what keeps
+// it true of the fold: the prefix is one shorter, so a keep of one more still
+// leaves two.
+func (m Model) keepAhead(bits []memory.Bit, ahead int) int {
+	room := m.roomFor(bits)
+	return keepAhead(bits, m.budget()/2-ahead, m.budget()-ahead,
+		func(b memory.Bit) int { return m.rows(b, room) })
+}
+
+// keepAhead is [Model.keepAhead] against a budget and a cost handed in, so the
+// harness that measures the hold schedule counts the way the program counts. A
+// fixture restating this rule is how a measurement comes to describe a program
+// nobody is running.
+func keepAhead(bits []memory.Bit, half, whole int, cost func(memory.Bit) int) int {
+	if len(bits) == 0 {
+		return 1
+	}
+
+	rows, base, ceiling := 0, 1, 1
+	for k := 1; k <= len(bits); k++ {
+		rows += cost(bits[len(bits)-k])
+		if rows <= whole {
+			ceiling = k
+		}
+		if rows < half {
+			base = k + 1
+		}
+	}
+	return keepFrom(bits, base, ceiling)
 }
 
 // keepFrom is [Model.keep]'s rule against bits already resolved: the smallest
@@ -1830,6 +2079,17 @@ func (m Model) keep() int {
 // no longer one: a ceiling of at most len-2 cannot index out of range, and on a
 // view of nothing it is negative, so the loop does not run at all.
 func keepFrom(bits []memory.Bit, base, ceiling int) int {
+	// D32's size rule outranks the floor. A run of one is never cooled, so a keep
+	// that leaves fewer than two bits to fold is a fold that refuses in silence
+	// and a footer that prints `held` — and the base can now exceed that, which it
+	// could not while it was a count of bits. It is reached by a view that is
+	// large in rows and small in bits: seven one-line messages and two documents
+	// at 100x30 is a load of 27 against a budget of 23 with only nine bits in it,
+	// so half a screen of rows is seven of those nine and the window is one.
+	// Measured on that fixture, this clamp is the difference between 20 frames in
+	// 120 reading `held` and none.
+	base = min(base, max(len(bits)-2, 1))
+
 	for k := base; k <= min(ceiling, len(bits)-2); k++ {
 		if bits[len(bits)-k].From.Ref == localHandle.Ref {
 			return k
@@ -1929,8 +2189,7 @@ func (m Model) stay() memory.Stay {
 // which reproduces exactly this and is the reason the promise above is worded the
 // way it is.
 func (m Model) absorbing() map[string]bool {
-	ahead := keepFrom(m.shown.Bits(m.store), m.budget()/2-1, m.budget()-1)
-	return m.shown.Absorbing(m.store, ahead, m.stay())
+	return m.shown.Absorbing(m.store, m.keepAhead(m.shown.Bits(m.store), 1), m.stay())
 }
 
 // blocked reports a fold that cannot happen: the view is past its limit and

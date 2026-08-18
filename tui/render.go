@@ -131,6 +131,10 @@ func (f frame) standing(id string) int { return f.votes[id][localHandle] }
 // It quotes only utterances. A scar absorbs originals, never the folds beneath it
 // (see [memory.Cool]), so the only other thing in reach is an empty one, and a
 // quotation of nothing is not one.
+//
+// And only utterances with something quotable in them — see [opening], which
+// owns that rule and the reason for it. A message that opens with a fenced
+// program is passed over here the same way an empty one is.
 func (f frame) quoted(c memory.Compaction) (memory.Bit, bool) {
 	ids := slices.Collect(c.Absorbed())
 
@@ -144,6 +148,18 @@ func (f frame) quoted(c memory.Compaction) (memory.Bit, bool) {
 		}
 		u, said := b.Payload.(memory.Utterance)
 		if !said || strings.TrimSpace(u.Text) == "" {
+			continue
+		}
+
+		// A bit with nothing quotable in it is passed over here rather than
+		// refused later, and that is the other half of [opening]. A message that
+		// opens with a fenced program has no prose to put quotation marks round;
+		// refusing it at the draw would cost the scar its whole account of itself
+		// even though nine of the ten bits it absorbed were sentences. So the
+		// choice is over the bits this reader's votes rank highest *and* that have
+		// words a quotation may carry, which is the same narrowing already made one
+		// line above for a bit that is not an utterance at all.
+		if opening(u.Text) == "" {
 			continue
 		}
 
@@ -221,9 +237,15 @@ func (f frame) quotation(c memory.Compaction, width int) (string, bool) {
 	// Whether there is a mark to take off is answered from the bit rather than
 	// from the row, which is what makes [unmarked] exact: a speaker who typed the
 	// glyph themselves keeps it inside their own quotation.
+	// [opening] rather than [said], because these two characters assert that what
+	// is between them is what somebody said and [said] draws a *rendering* now —
+	// a heading in capitals with its hashes spent, a fence quoted as one line of
+	// code. Quoting that would put the surface's own editing inside the marks that
+	// promise it did none. The ladder is shared and only the words differ; see
+	// [oneRow].
 	u, _ := b.Payload.(memory.Utterance)
-	text, mark := unmarked(said(f, b, width-lipgloss.Width(who)-3), u.Truncated)
-	whole, _ := unmarked(said(f, b, uncut), u.Truncated)
+	text, mark := unmarked(oneRow(opening(u.Text), width-lipgloss.Width(who)-3, u.Truncated), u.Truncated)
+	whole, _ := unmarked(oneRow(opening(u.Text), uncut, u.Truncated), u.Truncated)
 
 	// The floor is on the words that survived, and it applies only to a quotation
 	// that was cut. Both halves matter and the second was wrong first: a floor on
@@ -339,37 +361,7 @@ func transcript(f frame) (string, anchors) {
 		}
 	}
 
-	// The columns in front of the handle, and the order they give way in. The
-	// margin is never given up to the terminal: it is reserved whether or not the
-	// caret is in it, and a caret that moved the row it sits on would make every
-	// row jump as it passed. It is given up to the fade, and only to the fade — a
-	// row the next fold will take spends [step] of it saying so, which is margin
-	// reserved for one thing being spent on another thing about the same row
-	// rather than on width. See [caretCell].
-	//
-	// The drain goes before the handle shrinks. It is the machinery column here
-	// — it says how much longer, and the mark beside it already says that
-	// something is being held — and provenance outranks machinery on this
-	// surface, which is the same order the receipt's own ladder uses.
-	vote := 0
-	if f.voted() {
-		vote = markWidth + drainWidth + 1
-		if width-caretColumn-step-vote-widest(names)-colGap < textFloor {
-			vote = markWidth + 1
-		}
-	}
-
-	lead := caretColumn + step + vote
-	name := nameColumn(names, width-lead)
-
-	// One width for the sentence, for every row, computed from where a row that
-	// is staying begins — not from where the row being drawn begins. A cooling
-	// row starts [step] columns further left and so has that much slack at its
-	// right end, and the slack is left unspent on purpose: spending it would mean
-	// a sentence gains characters at the moment its bit starts cooling and loses
-	// them again if a vote saves it, so the text would reflow on exactly the two
-	// events this screen exists to make legible.
-	room := max(width-lead-name-colGap, 1)
+	vote, name, room := columns(names, width, f.voted())
 
 	var out strings.Builder
 	line, at := 0, anchors{mark: -1, scar: -1}
@@ -517,6 +509,48 @@ func transcript(f frame) (string, anchors) {
 		}
 	}
 	return strings.TrimRight(out.String(), "\n"), at
+}
+
+// columns is the transcript's own column arithmetic: how wide the vote column
+// is, how wide the handle column is, and how many columns are left for what
+// somebody said.
+//
+// It was inside [transcript] until the fold budget needed it. [Model.rows] asks
+// how many rows a bit draws, and a bit's height is a function of the column its
+// sentence is wrapped into — so the budget and the renderer have to agree about
+// that number exactly, and this package's standing rule is that two statements of
+// one rule agree on the day they are written. Here that failure would be silent
+// and total: the fold would be sized against a screen that is not the screen.
+//
+// The margin is never given up to the terminal: it is reserved whether or not the
+// caret is in it, and a caret that moved the row it sits on would make every row
+// jump as it passed. It is given up to the fade, and only to the fade — a row the
+// next fold will take spends [step] of it saying so, which is margin reserved for
+// one thing being spent on another thing about the same row rather than on width.
+// See [caretCell].
+//
+// The drain goes before the handle shrinks. It is the machinery column here — it
+// says how much longer, and the mark beside it already says that something is
+// being held — and provenance outranks machinery on this surface, which is the
+// same order the receipt's own ladder uses.
+//
+// The room it returns is measured from where a row that is *staying* begins, not
+// from where the row being drawn begins. A cooling row starts [step] columns
+// further left and so has that much slack at its right end, and the slack is left
+// unspent on purpose: spending it would mean a sentence gains characters at the
+// moment its bit starts cooling and loses them again if a vote saves it, so the
+// text would reflow on exactly the two events this screen exists to make legible.
+func columns(names []string, width int, voted bool) (vote, name, room int) {
+	if voted {
+		vote = markWidth + drainWidth + 1
+		if width-caretColumn-step-vote-widest(names)-colGap < textFloor {
+			vote = markWidth + 1
+		}
+	}
+
+	lead := caretColumn + step + vote
+	name = nameColumn(names, width-lead)
+	return vote, name, max(width-lead-name-colGap, 1)
 }
 
 // Column widths in front of a row: the margin, then the vote's, which is a mark
@@ -975,7 +1009,53 @@ var filler = func() map[string]bool {
 }()
 
 // topWords returns the n most telling words: most frequent first, then longest,
-// then alphabetical, skipping [filler].
+// then alphabetical, skipping [filler] and anything shorter than three
+// characters.
+//
+// # The short ones, which are code rather than words
+//
+// Re-derived on this package's own fixture, a forty-bit conversation folded at
+// 100x30, with one fenced Go reply in the window and without it: distinct words
+// 111 → 178, tokens of two characters or fewer 16 → 30, and the twelve words the
+// persona is told went from
+//
+//	migration backfill staging production columns minutes writing schema …
+//
+// to
+//
+//	j s 1 migration backfill reverse staging nothing names slice fmt xs
+//
+// — the three most prominent slots spent on a loop index, a slice and a literal.
+// The bag counts by frequency and a loop variable in a program outruns every
+// English word in the window. (An earlier measurement on a ten-bit window put it
+// at four slots, `j s 1 t`; the shape is the same and the count is a property of
+// the fixture, which is why the procedure rather than the figure is what to
+// re-run.)
+//
+// **What it costs when there is no program in the window is nothing, measured:**
+// the same fold with no fenced reply in it returns the identical twelve words
+// with the filter and without it.
+//
+// The cut is at three characters and it is a rule about what a token can carry
+// rather than a threshold that was tuned: below three characters a token is a
+// letter, a digit or a piece of punctuation-grade syntax, and a word index made
+// of those indexes nothing. What it costs is the handful of real two-letter
+// words, and [filler] already drops almost every one of them.
+//
+// # Why it is here and not where the bag is made
+//
+// [memory.Compaction]'s bag is built by memory/cool.go and reaches `ID(cold)`,
+// so a filter there re-addresses every scar already on disk. This is a display
+// filter over the same bag, exactly like [filler] beside it — the store still
+// counts every token, and the sentences they came from are one `ctrl+u` away.
+//
+// **It does not cross D60 or D39(a), and the line is worth stating because it is
+// close.** D60 keeps the model-facing half of a fold note a *word index* on
+// purpose; skipping punctuation-grade tokens leaves it a word index rather than
+// making it a quotation. What D39(a) forbids is a bit the human's own approval
+// selected reaching the persona, and nothing here reads a vote:
+// [TestNoVoteReachesThePersona] is the pin, and this filter is a function of the
+// spelling of a token and nothing else.
 func topWords(bag iter.Seq2[string, int], n int) []string {
 	type word struct {
 		text  string
@@ -984,7 +1064,7 @@ func topWords(bag iter.Seq2[string, int], n int) []string {
 
 	var words []word
 	for text, count := range bag {
-		if filler[text] {
+		if filler[text] || len([]rune(text)) < 3 {
 			continue
 		}
 		words = append(words, word{text, count})
@@ -1015,6 +1095,13 @@ func topWords(bag iter.Seq2[string, int], n int) []string {
 
 // gauge draws the pressure on the record: how much material a fold could take,
 // against how much it waits for. Cooling should never be a surprise.
+//
+// Both numbers are rows and they were not always. The numerator counted bits
+// while the denominator was a screen's height, which was one number stated twice
+// for as long as every bit drew one row — and stopped being that the day a
+// message could be drawn as a document. The frame that named it: five bits, one
+// of them a fenced 36-row answer, drawing forty rows in a viewport of 23 under a
+// gauge reading `5/23`. See [Model.rows].
 //
 // The number can now exceed the limit, and it is left saying so rather than
 // clamped. A held bit is not foldable, so a view can sit at 14/12 with the bar

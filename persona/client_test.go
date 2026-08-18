@@ -103,13 +103,13 @@ func TestReplyReturnsWhatTheModelSaid(t *testing.T) {
 			name:    "a plain answer",
 			content: "Purge the stale logs.",
 			reason:  "stop",
-			want:    Answer{Text: "Purge the stale logs."},
+			want:    Answer{Text: "Purge the stale logs.", Window: DefaultWindow},
 		},
 		{
 			name:    "padding the chat template added",
 			content: "\n\n  Purge the stale logs.  \n",
 			reason:  "stop",
-			want:    Answer{Text: "Purge the stale logs."},
+			want:    Answer{Text: "Purge the stale logs.", Window: DefaultWindow},
 		},
 		{
 			// The failure this rules out is not cosmetic. Reasoning that
@@ -120,7 +120,7 @@ func TestReplyReturnsWhatTheModelSaid(t *testing.T) {
 			content:  "Purge the stale logs.",
 			thinking: "Thinking Process:\n1. **Analyze the Request** — the user wants...",
 			reason:   "stop",
-			want:     Answer{Text: "Purge the stale logs."},
+			want:     Answer{Text: "Purge the stale logs.", Window: DefaultWindow},
 		},
 		{
 			// The text here is perfectly well-formed and is not what the
@@ -129,7 +129,7 @@ func TestReplyReturnsWhatTheModelSaid(t *testing.T) {
 			name:    "an answer that ran out of room",
 			content: "Purge the stale logs, then rotate the",
 			reason:  "length",
-			want:    Answer{Text: "Purge the stale logs, then rotate the", Truncated: true},
+			want:    Answer{Text: "Purge the stale logs, then rotate the", Truncated: true, Window: DefaultWindow},
 		},
 		{
 			// An older ollama, or a shape change, leaves the reason empty. A
@@ -138,7 +138,7 @@ func TestReplyReturnsWhatTheModelSaid(t *testing.T) {
 			name:    "a reply with no reason given",
 			content: "Purge the stale logs.",
 			reason:  "",
-			want:    Answer{Text: "Purge the stale logs."},
+			want:    Answer{Text: "Purge the stale logs.", Window: DefaultWindow},
 		},
 	}
 
@@ -230,6 +230,78 @@ func TestReplySendsTheConversation(t *testing.T) {
 			t.Errorf("message %d = %s/%q, want %s/%q",
 				i, got.Messages[i].Role, got.Messages[i].Content, w.role, w.content)
 		}
+	}
+}
+
+// The "think" key is on every request, with a value, and a Client nobody
+// configured sends false.
+//
+// The pointer is the whole test. Absent and false are different answers here in
+// the way they are for "stream", and the difference is not cosmetic: measured
+// against ollama 0.17.7 and qwen3.5:latest, the same one-line question sent
+// without the key took 8.21s and returned 2,350 characters of monologue, and
+// sent with an explicit false took 0.22s and returned none. An omitempty here —
+// or a Persona that only sets it when true — would leave [Persona.Think] reading
+// like a control while the server went on doing whatever the model felt like,
+// which is a setting that cannot fail rather than a setting.
+func TestReplySendsAnExplicitThinkSetting(t *testing.T) {
+	for _, want := range []bool{false, true} {
+		t.Run(fmt.Sprintf("think %v", want), func(t *testing.T) {
+			var got struct {
+				Think *bool `json:"think"`
+			}
+			c := serve(t, func(w http.ResponseWriter, r *http.Request) {
+				if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+					t.Errorf("decoding the request body: %v", err)
+				}
+				says(w, "ok", "")
+			})
+			p := nikola()
+			p.Think = want
+
+			if _, err := c.Reply(context.Background(), p, []Turn{{RoleUser, "hello"}}); err != nil {
+				t.Fatalf("Reply: %v", err)
+			}
+			if got.Think == nil {
+				t.Fatalf("no \"think\" key was sent; ollama reads that as the model's own default")
+			}
+			if *got.Think != want {
+				t.Errorf("think = %v, want %v", *got.Think, want)
+			}
+		})
+	}
+}
+
+// A persona that says nothing about thinking gets the fast answer, and it has
+// to get it through a zero field rather than through a default somewhere in the
+// client. That is not a taste about struct literals: any caller that builds a
+// Persona without mentioning Think must still get the fast answer, and nobody
+// should have to know this setting exists to get a program that answers in a
+// quarter of a second. tui's own defaultPersona does name it, deliberately and
+// redundantly, for the reproducibility reason its comment gives — this check is
+// what holds the guarantee for every caller that does not.
+//
+// Written against a Persona built the way a caller builds one, and a Client with
+// no HTTP set, because the pair of zero values is the thing being claimed.
+func TestAPersonaThatSaysNothingDoesNotAskForThinking(t *testing.T) {
+	var got struct {
+		Think *bool `json:"think"`
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Errorf("decoding the request body: %v", err)
+		}
+		says(w, "ok", "")
+	}))
+	t.Cleanup(srv.Close)
+
+	c := Client{BaseURL: srv.URL}
+	p := Persona{Name: "nikola", Model: DefaultModel, Temperature: 0.7}
+	if _, err := c.Reply(context.Background(), p, []Turn{{RoleUser, "hello"}}); err != nil {
+		t.Fatalf("Reply: %v", err)
+	}
+	if got.Think == nil || *got.Think {
+		t.Errorf("a persona that set no Think sent think = %v, want an explicit false", got.Think)
 	}
 }
 
@@ -486,7 +558,7 @@ func TestReplyAcceptsAServerThatOmitsDone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Reply: %v", err)
 	}
-	if want := (Answer{Text: "Purge the stale logs."}); got != want {
+	if want := (Answer{Text: "Purge the stale logs.", Window: DefaultWindow}); got != want {
 		t.Errorf("Reply = %+v, want %+v", got, want)
 	}
 }
@@ -899,5 +971,339 @@ func TestZeroClientPointsAtALocalOllama(t *testing.T) {
 	}
 	if got := c.httpClient().Timeout; got != DefaultTimeout {
 		t.Errorf("timeout = %v, want %v — a short one truncates real replies", got, DefaultTimeout)
+	}
+}
+
+// The window is on every request, with a value, and a persona that says nothing
+// gets [DefaultWindow] rather than whatever the server would have picked.
+//
+// The pointer is the test, as it is for "think" and "stream". Absent is a third
+// value here and it is the expensive one: measured against ollama 0.17.7, a
+// 400-message conversation sent with no num_ctx had 4,086 of its tokens read,
+// and the same conversation with num_ctx 32768 had 26,578 read — the server
+// dropping the oldest turns to fit its own 4096 default, answering normally,
+// and saying nothing about it in any field of the reply. A request that omits
+// this key is not asking for less; it is asking without knowing.
+func TestReplySendsTheWindowItAsksFor(t *testing.T) {
+	tests := []struct {
+		name string
+		set  int
+		want int
+	}{
+		{"a persona that says nothing", 0, DefaultWindow},
+		{"a persona that asks for less", 8192, 8192},
+		{"a persona that asks for the default in so many words", DefaultWindow, DefaultWindow},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got struct {
+				Options *struct {
+					NumCtx *int `json:"num_ctx"`
+				} `json:"options"`
+			}
+			c := serve(t, func(w http.ResponseWriter, r *http.Request) {
+				if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+					t.Errorf("decoding the request body: %v", err)
+				}
+				says(w, "ok", "")
+			})
+			p := nikola()
+			p.Window = tt.set
+
+			ans, err := c.Reply(context.Background(), p, []Turn{{RoleUser, "hello"}})
+			if err != nil {
+				t.Fatalf("Reply: %v", err)
+			}
+			if got.Options == nil || got.Options.NumCtx == nil {
+				t.Fatalf("no \"num_ctx\" key was sent; ollama reads that as 4096 whatever the model can hold")
+			}
+			if *got.Options.NumCtx != tt.want {
+				t.Errorf("num_ctx = %d, want %d", *got.Options.NumCtx, tt.want)
+			}
+			// The same number comes back on the answer, because a caller that
+			// wants to say what the model read needs to know what it was given
+			// room to read.
+			if ans.Window != tt.want {
+				t.Errorf("Answer.Window = %d, want %d", ans.Window, tt.want)
+			}
+		})
+	}
+}
+
+// A zero num_ctx still goes on the wire as a zero.
+//
+// Nothing in this package sends one — [Persona.Window]'s zero becomes
+// [DefaultWindow] before the request is built — so this is a check on the tag
+// rather than on a reachable path, and it is written against the encoding
+// directly because there is no request that would exercise it. What it holds up
+// is the guard: an omitempty added here in a tidying pass would be invisible
+// today and would turn the first future caller that reaches this with a zero
+// into one that silently inherits the server's 4096.
+func TestTheWireKeepsAZeroWindowVisible(t *testing.T) {
+	body, err := json.Marshal(chatRequest{Model: DefaultModel})
+	if err != nil {
+		t.Fatalf("marshalling a chatRequest: %v", err)
+	}
+	if !strings.Contains(string(body), `"num_ctx":0`) {
+		t.Errorf("a zero window marshalled to %s, want a visible \"num_ctx\":0", body)
+	}
+}
+
+// A negative window is a mistake at the call site, and it is refused before
+// anything is sent — the same treatment, in the same place, as a persona that
+// names no model. Sent, it would be ollama's to interpret, and the reply would
+// come back looking ordinary.
+func TestReplyRefusesAWindowNobodyCouldHaveMeant(t *testing.T) {
+	asked := false
+	c := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		asked = true
+		says(w, "ok", "")
+	})
+	p := nikola()
+	p.Window = -1
+
+	_, err := c.Reply(context.Background(), p, []Turn{{RoleUser, "hello"}})
+	var e *Error
+	if !errors.As(err, &e) || e.Kind != Unusable {
+		t.Fatalf("Reply = %v, want an Unusable Error", err)
+	}
+	if !strings.Contains(e.Error(), "-1") {
+		t.Errorf("the message does not quote the window back: %q", e.Error())
+	}
+	if asked {
+		t.Error("a request went out that could never have worked")
+	}
+}
+
+// How much of the conversation the model read comes back on the answer, and a
+// server that does not say leaves a zero rather than a claim.
+//
+// prompt_eval_count is the only thing ollama 0.17.7 says about what went in —
+// verified by dumping every key of a reply to a conversation that was cut and
+// one that fit, which differ in nothing else. Reading it is what lets a caller
+// notice, across turns, that the count has stopped growing while the record
+// has not. Losing it here would take that away with every test still green,
+// because nothing else in this package looks at the number.
+func TestReplyReportsHowMuchOfTheConversationWasRead(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want int
+	}{
+		{
+			name: "a server that counts the prompt",
+			body: `{"message":{"role":"assistant","content":"ok"},"done":true,"done_reason":"stop","prompt_eval_count":4086}`,
+			want: 4086,
+		},
+		{
+			// An older ollama, or another server answering in ollama's shape.
+			// Zero is "it did not say" and not "it read none of it": a reply
+			// that exists read at least one token, so there is nothing for the
+			// two readings to be confused about.
+			name: "a server that says nothing about the prompt",
+			body: `{"message":{"role":"assistant","content":"ok"},"done":true,"done_reason":"stop"}`,
+			want: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := serve(t, func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprint(w, tt.body)
+			})
+
+			got, err := c.Reply(context.Background(), nikola(), []Turn{{RoleUser, "hello"}})
+			if err != nil {
+				t.Fatalf("Reply: %v", err)
+			}
+			if got.PromptTokens != tt.want {
+				t.Errorf("PromptTokens = %d, want %d", got.PromptTokens, tt.want)
+			}
+		})
+	}
+}
+
+// shows writes the shape /api/show answers with, cut down to the one field this
+// package reads. The real body also carries the licence, the Modelfile, the
+// chat template and a tensor list — 42 KB for llama3.2:1b and 83 KB for
+// qwen3.5:latest, measured — none of which anything here looks at.
+func shows(w http.ResponseWriter, info string) {
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"details":{"family":"qwen35"},"model_info":%s}`, info)
+}
+
+// What the model can hold is read off /api/show, under a key whose prefix is
+// the architecture's rather than a fixed name.
+//
+// Verified against ollama 0.17.7: qwen3.5:latest reports 262144 under
+// "qwen35.context_length" and llama3.2:1b reports 131072 under
+// "llama.context_length", so a client that matched a spelling would answer for
+// one model and not the other. The near neighbours in the table are the ones a
+// real model_info carries — qwen3.5:latest has an embedding length, an
+// attention key length and a vision embedding length beside the one that
+// matters.
+func TestWindowForReadsWhatTheModelCanHold(t *testing.T) {
+	var method, path string
+	var sent struct {
+		Model string `json:"model"`
+	}
+	c := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		method, path = r.Method, r.URL.Path
+		if err := json.NewDecoder(r.Body).Decode(&sent); err != nil {
+			t.Errorf("decoding the request body: %v", err)
+		}
+		shows(w, `{"qwen35.context_length":262144,"qwen35.embedding_length":4096,
+			"qwen35.attention.key_length":256,"qwen35.vision.embedding_length":1152,
+			"general.architecture":"qwen35"}`)
+	})
+
+	got, err := c.WindowFor(context.Background(), DefaultModel)
+	if err != nil {
+		t.Fatalf("WindowFor: %v", err)
+	}
+	if got != 262144 {
+		t.Errorf("WindowFor = %d, want 262144", got)
+	}
+	if method != http.MethodPost || path != "/api/show" {
+		t.Errorf("sent %s %s, want POST /api/show", method, path)
+	}
+	if sent.Model != DefaultModel {
+		t.Errorf("asked about %q, want %q", sent.Model, DefaultModel)
+	}
+}
+
+func TestWindowForReadsAnyArchitecturesKey(t *testing.T) {
+	tests := []struct {
+		name string
+		info string
+		want int
+	}{
+		{"llama", `{"llama.context_length":131072,"llama.embedding_length":2048}`, 131072},
+		{"qwen3", `{"qwen3.context_length":40960}`, 40960},
+		{
+			// Not a shape ollama 0.17.7 produces, and read anyway: a bare key
+			// is unambiguous, and refusing it would be this client insisting on
+			// a prefix for its own sake.
+			name: "no architecture prefix at all",
+			info: `{"context_length":8192}`,
+			want: 8192,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := serve(t, func(w http.ResponseWriter, r *http.Request) { shows(w, tt.info) })
+			got, err := c.WindowFor(context.Background(), "a-model")
+			if err != nil {
+				t.Fatalf("WindowFor: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("WindowFor = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+// Every way the answer can fail to be a window, refused rather than guessed.
+//
+// The two-keys row is the one worth defending. Picking the first match would
+// return a definite-looking number for a question this client cannot answer,
+// and the number would be whichever key sorted first — a wrong window is not a
+// visible failure, it is a conversation quietly cut somewhere else.
+func TestWindowForRefusesAnAnswerItCannotRead(t *testing.T) {
+	tests := []struct {
+		name string
+		info string
+		says []string
+	}{
+		{
+			name: "no context length anywhere",
+			info: `{"llama.embedding_length":2048}`,
+			says: []string{"does not say"},
+		},
+		{
+			name: "two of them",
+			info: `{"llama.context_length":131072,"clip.context_length":77}`,
+			says: []string{"more than one", "clip.context_length", "llama.context_length"},
+		},
+		{
+			name: "one that is not a number",
+			info: `{"llama.context_length":"lots"}`,
+			says: []string{"not a number"},
+		},
+		{
+			name: "one that is not a length",
+			info: `{"llama.context_length":0}`,
+			says: []string{"cannot be a window"},
+		},
+		{
+			name: "one no window could be",
+			info: `{"llama.context_length":9007199254740993}`,
+			says: []string{"cannot be a window"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := serve(t, func(w http.ResponseWriter, r *http.Request) { shows(w, tt.info) })
+			got, err := c.WindowFor(context.Background(), "a-model")
+			var e *Error
+			if !errors.As(err, &e) || e.Kind != Garbled {
+				t.Fatalf("WindowFor = %d, %v, want a Garbled Error", got, err)
+			}
+			if got != 0 {
+				t.Errorf("WindowFor = %d beside an error, want 0", got)
+			}
+			for _, want := range tt.says {
+				if !strings.Contains(e.Error(), want) {
+					t.Errorf("the message does not mention %q: %q", want, e.Error())
+				}
+			}
+		})
+	}
+}
+
+// The two failures a person actually hits, told apart the same way [Reply]
+// tells them apart: ollama's own 404 about a model it does not have carries the
+// one fix worth printing, and any other 404 at that address is somebody else's
+// server.
+func TestWindowForWhenTheModelIsNotPulled(t *testing.T) {
+	c := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"error":"model 'nope:1b' not found"}`)
+	})
+
+	_, err := c.WindowFor(context.Background(), "nope:1b")
+	var e *Error
+	if !errors.As(err, &e) || e.Kind != NoModel {
+		t.Fatalf("WindowFor = %v, want a NoModel Error", err)
+	}
+	if !strings.Contains(e.Fix, "ollama pull nope:1b") {
+		t.Errorf("the fix does not name the pull: %q", e.Fix)
+	}
+}
+
+func TestWindowForRefusesWhatItCannotAsk(t *testing.T) {
+	asked := false
+	c := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		asked = true
+		shows(w, `{"llama.context_length":131072}`)
+	})
+
+	_, err := c.WindowFor(context.Background(), "")
+	var e *Error
+	if !errors.As(err, &e) || e.Kind != Unusable {
+		t.Fatalf("WindowFor = %v, want an Unusable Error", err)
+	}
+	if asked {
+		t.Error("a request went out with no model in it")
+	}
+
+	bad := &Client{BaseURL: "not-a-url"}
+	if _, err := bad.WindowFor(context.Background(), DefaultModel); !errors.As(err, &e) || e.Kind != Unusable {
+		t.Fatalf("WindowFor against a bad address = %v, want an Unusable Error", err)
 	}
 }

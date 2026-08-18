@@ -265,12 +265,37 @@ func TestTheBudgetNeverFallsBelowWhatThisSurfaceAlwaysFoldedAt(t *testing.T) {
 	// it would take a bit the plain half kept — possibly the one under the caret.
 	// A fixture that alternates, because [record] writes one handle and the cut
 	// never moves there at all.
+	//
+	// The floor is counted in rows, which is the change [Model.rows] made and the
+	// reason this loop was rewritten rather than retuned: half a *budget* is half
+	// a screen of rows, and the kept tail is measured against it in the same unit.
+	// A view holding fewer rows than that keeps all of them, which is the
+	// direction this check is about — the one that keeps more.
 	moved := 0
 	for n := 2; n <= 60; n++ {
 		m := talk(sized(100, 30), n)
-		if got, floor := m.keep(), m.budget()/2; got < floor {
-			t.Fatalf("%d bits: keep is %d, under half a budget of %d — the cut moved forward", n, got, m.budget())
-		} else if got > floor {
+		bits, room := m.shown.Bits(m.store), m.room()
+
+		rows := func(k int) int {
+			n := 0
+			for _, b := range bits[max(len(bits)-k, 0):] {
+				n += m.rows(b, room)
+			}
+			return n
+		}
+
+		// The floor cannot demand more than D32's size rule allows: a keep that
+		// leaves fewer than two bits to fold is refused in silence, so the cut is
+		// clamped there and the floor is clamped with it. That clamp is what a
+		// budget in rows made reachable — a view can now be large in rows and small
+		// in bits — and it is [keepFrom]'s, stated once.
+		k := m.keep()
+		floor := min(m.budget()/2, rows(max(len(bits)-2, 1)))
+		if got := rows(k); got < floor {
+			t.Fatalf("%d bits: the cut keeps %d rows, under a floor of %d on a budget of %d — the cut moved forward",
+				n, got, floor, m.budget())
+		}
+		if k > m.budget()/2 && rows(k-1) >= m.budget()/2 {
 			moved++
 		}
 	}
@@ -2512,12 +2537,34 @@ func TestOnlyTheCaretsRowIsEverMoreThanOneRow(t *testing.T) {
 	}
 }
 
-// An expanded row shows every word the record holds and none of its line breaks,
-// which is the trade [saidWhole] names in its own doc rather than leaving to be
-// found. The record keeps the shape; the view drops it, the same way the view
-// drops everything else this program is about.
-func TestAnExpandedRowShowsEveryWordAndNotTheLineBreaks(t *testing.T) {
-	reply := "Three things:\n\n1. backfill first\n2. then drop\n3. verify, twice, against a staging box nobody else is using"
+// An expanded row of prose shows every word the record holds **and the line
+// breaks it holds**, which is a reversal of what this check used to assert.
+//
+// It was [TestAnExpandedRowShowsEveryWordAndNotTheLineBreaks], and its last
+// clause pinned the collapse in [drawn] as a residual: a message's newlines and
+// its indentation were joined into one paragraph before anything was drawn, so
+// a person's pasted source arrived as a wall. [markdown] closed that for a
+// message written with a fence, a heading or a list item in it and left it open
+// for everything else, which turned out to be where a person's own text lives.
+// [wrapped] closes the rest.
+//
+// **The rename is the finding.** The old test went on passing through the
+// change that falsified its own name: its fixture had no blank line in it, so
+// the one assertion standing for "no line break reached the screen" — no blank
+// row — was true either way. A check named for a behaviour is not a check on it,
+// and the fixture is what decides which. This one carries a blank line, an
+// indented line and a line too long for the width, so each half of the claim has
+// something in the material to fail on.
+//
+// The fixture is prose on purpose: [markdown] takes any message written as a
+// document, and this is the other path. The document half is
+// [TestADocumentKeepsItsHeadingsListsAndCodeBlock].
+func TestAnExpandedRowKeepsTheWordsAndTheLineBreaksTheRecordHolds(t *testing.T) {
+	reply := "Three things, and the third is the one that matters:\n\n    backfill first, then drop,\nand verify twice against a staging box nobody else is using"
+
+	if structured(reply) {
+		t.Fatalf("this fixture is meant to be prose and [markdown] reads it as a document, so the claim under test is not the one being checked")
+	}
 
 	m := record(1)
 	m.utter(m.persona.Handle(), memory.Utterance{Text: reply})
@@ -2527,7 +2574,7 @@ func TestAnExpandedRowShowsEveryWordAndNotTheLineBreaks(t *testing.T) {
 	}
 
 	rows := block(t, m, 60)
-	if len(rows) < 2 {
+	if len(rows) < 4 {
 		t.Fatalf("the reply drew %d row(s) at width 60, so nothing here is being tested", len(rows))
 	}
 
@@ -2536,10 +2583,161 @@ func TestAnExpandedRowShowsEveryWordAndNotTheLineBreaks(t *testing.T) {
 	if !slices.Equal(got[len(got)-len(want):], want) {
 		t.Errorf("the expanded reply reads %q, want every word of %q", strings.Join(got, " "), reply)
 	}
-	for i, r := range rows {
+
+	// The blank line the record holds is a blank row on the screen, and it is the
+	// only one: a message that ends without a newline does not gain a row, and a
+	// wrap does not invent one.
+	blank := 0
+	for _, r := range rows {
 		if strings.TrimSpace(r) == "" {
-			t.Errorf("row %d of the block is blank, so a line break in the record reached the screen:\n%s",
-				i+1, strings.Join(rows, "\n"))
+			blank++
+		}
+	}
+	if blank != 1 {
+		t.Errorf("the block draws %d blank row(s) and the message holds one blank line:\n%s",
+			blank, strings.Join(rows, "\n"))
+	}
+
+	// And the indented line is drawn indented, measured against the line above it
+	// rather than against a column this test would have to know.
+	//
+	// Row 0 carries the caret and the handle, so the column the sentence starts in
+	// is read off the last line of the message — which is unindented in the record
+	// and drawn at the block's own lead — rather than off it.
+	at := func(row string) int { return len(row) - len(strings.TrimLeft(row, " ")) }
+	first, indented := at(rows[len(rows)-1]), at(rows[3])
+	if indented-first != 4 {
+		t.Errorf("the indented line starts %d columns past the first line and the record indents it by 4:\n%s",
+			indented-first, strings.Join(rows, "\n"))
+	}
+}
+
+// A line too long for the room is wrapped, its continuations carry its own
+// indentation, and nothing is dropped doing it.
+//
+// This is the half of [wrapped] that is not "leave it alone", and it is asserted
+// on [drawn] rather than on a frame because what is claimed is about the lines —
+// the frame's own copy of the claim is the indent check in
+// [TestAnExpandedRowKeepsTheWordsAndTheLineBreaksTheRecordHolds], and the width
+// backstop is [TestNoExpandedRowRunsPastTheWidthItWasGiven].
+//
+// The room is 20 and the fixture's indent is 4, so a continuation at column 0
+// and a continuation at column 4 are different frames rather than the same one
+// rounded — at a room wide enough for the whole line neither the wrap nor the
+// indent would be reached at all, which is the fixture failure this package
+// keeps finding.
+func TestAWrappedLineCarriesItsOwnIndentAndLosesNoWords(t *testing.T) {
+	const text = "head\n    a deeply considered line that will not fit in twenty columns\ntail"
+
+	rows := drawn(memory.Utterance{Text: text}, 20, false)
+	if len(rows) < 4 {
+		t.Fatalf("the fixture drew %d rows at width 20 and it is meant to wrap:\n%s", len(rows), strings.Join(rows, "\n"))
+	}
+
+	if rows[0] != "head" || rows[len(rows)-1] != "tail" {
+		t.Errorf("the lines either side of the wrapped one read %q and %q, want \"head\" and \"tail\":\n%s",
+			rows[0], rows[len(rows)-1], strings.Join(rows, "\n"))
+	}
+	for i, r := range rows[1 : len(rows)-1] {
+		if !strings.HasPrefix(r, "    ") {
+			t.Errorf("row %d of the wrapped line reads %q, want it to carry the four columns the speaker indented it by:\n%s",
+				i+1, r, strings.Join(rows, "\n"))
+		}
+	}
+	if got, want := strings.Fields(strings.Join(rows, " ")), strings.Fields(text); !slices.Equal(got, want) {
+		t.Errorf("the wrapped block reads %q, want every word of %q", got, want)
+	}
+}
+
+// Nothing [wrapped] draws runs past the width it was given, at any width, on
+// text whose lines are longer than the terminal and whose indentation is deeper
+// than the terminal.
+//
+// The second half is the one that needs a check rather than an argument: the
+// continuation indent is the only thing on this path that adds columns to a row
+// the wrap already sized, so an indent wider than the room is the shape that
+// puts a row past the margin. It is clamped at half the width, and the CJK line
+// is here for the reason [TestAnExpandedRowSurvivesAWidthOfNothing] carries one
+// — [ansi.Wrap] comes back two columns wide at a limit of one, so [clip] is
+// load-bearing and an all-ASCII fixture never asks it to be.
+//
+// **Corroborating rather than sole, and named as such.** Run against the
+// mutation table for this change, every mutant this catches is also caught by
+// [TestAnExpandedRowSurvivesAWidthOfNothing] — including one written to separate
+// them, a wrap arm clipping to one column past what it was given. It is kept for
+// the reason the package already keeps two others: the claim is the one a reader
+// of this path comes looking for, over the material that path is now for, and a
+// test file a person reads needs the sentence itself.
+func TestNoExpandedRowRunsPastTheWidthItWasGiven(t *testing.T) {
+	const text = "short\n" +
+		"                                a line indented far past a narrow terminal\n" +
+		"    ゆっくりと進む長い行がここにあります\n" +
+		"a plain line of prose that is longer than most terminals are wide by some margin"
+
+	for width := 1; width <= 60; width++ {
+		for _, row := range drawn(memory.Utterance{Text: text}, width, false) {
+			if got := lipgloss.Width(row); got > width {
+				t.Errorf("at width %d a row is %d columns wide: %q", width, got, row)
+			}
+		}
+	}
+}
+
+// A tab never reaches a drawn row, because every measurement on this surface
+// counts it as one column and a terminal draws it to the next stop.
+//
+// This is the check under the tab expansion in [wrapped], and it cannot be a
+// width check: the width test above measures with [lipgloss.Width], which is the
+// very function that gets a tab wrong, so it passes on a row that runs three
+// columns past the margin on a real terminal. What is mechanical is the
+// character, so that is what is asserted. [markdown] does the same thing on the
+// document path for the same reason and says so in its own comment.
+//
+// The record keeps the tab — [TestDrawingADocumentChangesNothingTheRecordHolds]
+// holds that for the other path, and [oneLine] is untouched by either.
+func TestNoDrawnRowCarriesATab(t *testing.T) {
+	const text = "func main() {\n\tfor i := range 3 {\n\t\tfmt.Println(i, \"a line long enough that it has to wrap somewhere\")\n\t}\n}"
+
+	if structured(text) {
+		t.Fatal("this fixture is meant to reach the plain path and [structured] sends it to [markdown]")
+	}
+	for _, width := range []int{16, 20, 40, 80, 200} {
+		rows := drawn(memory.Utterance{Text: text}, width, false)
+		for i, row := range rows {
+			if strings.Contains(row, "\t") {
+				t.Errorf("at width %d row %d carries a tab, which measures one column and draws up to eight: %q",
+					width, i+1, row)
+			}
+		}
+	}
+}
+
+// An indentation deeper than the terminal is wide does not squeeze a line's own
+// words off the screen.
+//
+// The continuation indent is the one thing [wrapped] adds to a row, and left
+// unclamped it is unbounded: a line indented thirty-two columns drawn into
+// sixteen leaves nothing for the words, and because [clip] cuts the row back to
+// the width, the failure is not a row past the margin — it is a column of
+// ellipses where a line used to be. That is why this is a *loss* check rather
+// than a width check, and why the width sweep beside it comes back green on the
+// same mutation.
+//
+// Asserted from [textFloor] up, which is the narrowest room [transcript] ever
+// asks a block for: below that a row is cut to one line and this path is not
+// reached in the program at all.
+func TestADeeplyIndentedLineKeepsItsOwnCharacters(t *testing.T) {
+	text := "head\n" + strings.Repeat(" ", 32) +
+		"a nested line whose indentation is deeper than a narrow terminal is wide"
+
+	strip := func(s string) string { return strings.Join(strings.Fields(s), "") }
+	want := strip(text)
+
+	for width := textFloor; width <= 60; width++ {
+		rows := drawn(memory.Utterance{Text: text}, width, false)
+		if got := strip(strings.Join(rows, " ")); got != want {
+			t.Errorf("at width %d the block draws %q, want every character of the two lines:\n%s",
+				width, got, strings.Join(rows, "\n"))
 		}
 	}
 }

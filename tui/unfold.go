@@ -322,9 +322,18 @@ var unfinished = []string{
 	"╌ unfinished",
 }
 
-// said is a bit's content as one row of the width it was given: whitespace
-// collapsed, cut with an ellipsis if the terminal cannot hold it, and marked if
+// said is a bit's content as one row of the width it was given: its blocks led
+// by [lede], cut with an ellipsis if the terminal cannot hold it, and marked if
 // its speaker did not finish.
+//
+// It read [oneLine] until this pass, which is the whole message with every
+// whitespace run collapsed — so a message written as a document arrived on this
+// row as its own source, `### heading` and `- item` and `**bold**` on screen as
+// characters. That is what nearly every row on this surface is: the transcript's
+// cut rows, the ranked list's previews and a receipt's rows are all this
+// function, and only the one row under the caret is [saidWhole]. A message that
+// is not written as a document is untouched, byte for byte, because [lede]
+// shares [structured]'s gate.
 //
 // One definition for the transcript and the receipt alike, and the width is a
 // parameter rather than the caller's business, so the two cannot drift on
@@ -337,15 +346,31 @@ var unfinished = []string{
 // caller here already holds a frame, which is [frame]'s own argument about
 // asking one question of one reading rather than several of several.
 func said(f frame, b memory.Bit, width int) string {
-	width = max(width, 1)
-
 	if c, cold := b.Payload.(memory.Compaction); cold {
-		return scarLine(f, c, width)
+		return scarLine(f, c, max(width, 1))
 	}
-	text := oneLine(b)
 
 	u, ok := b.Payload.(memory.Utterance)
-	if !ok || !u.Truncated {
+	if !ok {
+		return ansi.Truncate(oneLine(b), max(width, 1), "…")
+	}
+	return oneRow(lede(u.Text), width, u.Truncated)
+}
+
+// oneRow is [said]'s ladder over text the caller has already chosen: cut with an
+// ellipsis if the terminal cannot hold it, and marked if its speaker did not
+// finish.
+//
+// It is split out of [said] for one caller. [frame.quotation] draws the same
+// row and needs the same ladder — the mark has to land where a speaker's own
+// row lands it, and the cut has to be the same cut — but it may not draw the
+// same *text*, because a quotation is verbatim and a row is a rendering. So the
+// two share the ladder and choose the words separately: [said] takes [lede],
+// the quotation takes [opening]. Restating this ladder over there is how the
+// mark would come to sit in two places on one screen.
+func oneRow(text string, width int, truncated bool) string {
+	width = max(width, 1)
+	if !truncated {
 		return ansi.Truncate(text, width, "…")
 	}
 
@@ -456,13 +481,29 @@ func unmarked(row string, marked bool) (said, mark string) {
 // the other participant in the conversation could read it and the person at the
 // keyboard could not.
 //
-// It wraps [oneLine]'s collapsed text, which means it shows every word the record
-// holds and not the line breaks it holds. That is a real fidelity loss and it is
-// named rather than left to be found: a numbered list comes back as a run-on
-// sentence. It is the same trade the scar's filler filter makes — the record
-// keeps everything, the view is the only place anything is dropped — and it keeps
-// this function's arithmetic what every other row's is, one line at a time.
-// [TestAnExpandedRowShowsEveryWordAndNotTheLineBreaks] holds both halves.
+// A message written as a document is drawn as one — see [markdown], which owns
+// that whole decision including when not to. Everything else keeps its own lines
+// and its own indentation and is wrapped only where a line does not fit — see
+// [wrapped]. Both halves therefore show every word the record holds *and* the
+// shape it holds, which the second half did not until this pass: it collapsed
+// every newline and every run of spaces first, so a pasted Go file arrived as a
+// wall of text with its structure gone.
+// [TestAnExpandedRowKeepsTheWordsAndTheLineBreaksTheRecordHolds] holds the plain
+// half and [TestADocumentKeepsItsHeadingsListsAndCodeBlock] holds the other.
+//
+// What separates the two is not fidelity to the characters — neither path spends
+// anything a person typed — it is *interpretation*. The document path renders
+// marks: hashes become capitals, a dash becomes a bullet, a fenced region gets a
+// lexer. That is only safe where the speaker wrote the marks that ask for it,
+// which is [structured]'s gate. Everything else is preserved and nothing about
+// it is guessed at, least of all whether it is code.
+//
+// The two paths are one function rather than two because the caller's arithmetic
+// is the same either way: a slice of lines, none wider than the width it asked
+// for, the first of which goes beside the handle. Everything [transcript] does
+// with the result — the hanging lead, the step when a bit is cooling, the tie
+// carried down a covered block — is geometry over that slice and does not care
+// which path produced it.
 //
 // The mark for a speaker who did not finish is placed differently here than in
 // [said], and the difference is the whole advantage of having more than one row.
@@ -490,14 +531,57 @@ func saidWhole(f frame, b memory.Bit, width int) []string {
 		return []string{scarLine(f, c, width)}
 	}
 
-	lines := strings.Split(ansi.Wrap(oneLine(b), width, ""), "\n")
-	for i, l := range lines {
-		lines[i] = clip(l, width)
+	u, ok := b.Payload.(memory.Utterance)
+	if !ok {
+		return drawn(memory.Utterance{Text: oneLine(b)}, width, false)
+	}
+	return drawn(u, width, f.absorbing[b.ID])
+}
+
+// drawn is [saidWhole] for a bit that is not a fold: the rows an utterance draws
+// when it is drawn whole, in the room it was given.
+//
+// It is split out of [saidWhole] because [Model.rows] needs the *height* of a bit
+// and must not have a second opinion about it. A budget sized in rows that
+// disagreed with the renderer about how many rows a bit is would be sizing the
+// fold against a screen nobody is looking at, and the disagreement would be
+// invisible — both numbers are plausible and neither is printed. So the fold
+// counts `len(drawn(...))` and the renderer draws `drawn(...)`, and there is one
+// answer.
+//
+// quiet is the absorbing set, so a block on a row the next fold is taking drops
+// its colour rather than carrying a syntax theme inside a dim style and coming
+// out bright — see [markdown], which argues it, and [transcript], which spends
+// the other half of the fade on the same block by stepping it left as one object.
+// It changes no geometry, which is what lets the height be asked without knowing
+// it: [TestACoolingDocumentKeepsEveryColumnItHadWhenItWasHot] is the pin that the
+// two arms agree line for line.
+func drawn(u memory.Utterance, width int, quiet bool) []string {
+	width = max(width, 1)
+
+	lines, document := markdown(u.Text, width, quiet)
+	if !document {
+		lines = wrapped(u.Text, width)
 	}
 
-	u, ok := b.Payload.(memory.Utterance)
-	if !ok || !u.Truncated {
+	if !u.Truncated {
 		return lines
+	}
+
+	// A document's mark always goes on a row of its own, and that is not the
+	// arithmetic being lazy. The last line of a truncated document is normally the
+	// last line of a fenced block, indented two columns clear of the prose; hanging
+	// `╌ unfinished ╌` off the end of it puts this harness's own vocabulary inside a
+	// region the reader is being told is code, which is [unmarked]'s problem
+	// arriving from the other direction. A row of its own is outside the block, in
+	// the prose column, where it reads as the surface talking.
+	if document {
+		for _, mark := range unfinished {
+			if lipgloss.Width(mark) <= width {
+				return append(lines, mark)
+			}
+		}
+		return append(lines, clip("╌", width))
 	}
 
 	// Widest first, and the first mark narrow enough for the terminal wins — the
@@ -525,6 +609,121 @@ func saidWhole(f frame, b memory.Bit, width int) []string {
 	// Narrower than the narrowest wording, so the bare dash goes on its own row.
 	// There is no rung under it: a row with no mark claims its speaker finished.
 	return append(lines, clip("╌", width))
+}
+
+// wrapped is a message that is not written as a document, drawn in the room it
+// was given: the speaker's own lines, in the speaker's own order, wrapped only
+// where one of them is too long for the terminal.
+//
+// # It used to flatten, and flattening was the defect
+//
+// What stood here was
+// `ansi.Wrap(strings.Join(strings.Fields(text), " "), width, "")` — every
+// newline and every run of indentation in the message collapsed to one space
+// before anything was drawn. [markdown] closed that for a message written with
+// fences, headings or list items in it, and left it open for everything else,
+// which is where a person's own text lives: a Go source paste has none of those
+// three marks anywhere in it, so it arrived as a wall with its indentation gone.
+// This package's own argument for that gate is that it "keeps a person's
+// punctuation and spends a model's". A line break is punctuation and this
+// function was spending it.
+//
+// # One rule for everybody, and no guess about what the text is
+//
+// There is no branch on who said it. A person's newlines and a model's are
+// equally theirs, and a renderer that asked would be a new concept on a surface
+// that already carries the asymmetry where it belongs — in [structured]'s gate,
+// which is about how the *message* is written rather than about who wrote it.
+//
+// There is also no guess about whether the text is code. A message with no info
+// string and no fence gives nothing to be right from, so highlighting one would
+// be colouring somebody's own words on a coin flip, and getting it wrong paints
+// prose in a syntax theme. Nothing here interprets: it preserves. The two marks
+// this surface may spend on a document — a heading's hashes, a bullet's dash —
+// are not spent here either, because nothing here decided the text was a
+// document.
+//
+// # What it does to a line, and the one thing it invents
+//
+// Tabs become four spaces first, for [markdown]'s reason and not for taste: a
+// terminal draws a tab to the next stop and [lipgloss.Width] counts it as one
+// column, so a line measured with tabs in it is measured narrower than it draws
+// and runs past the margin — the one thing no row here may do. Trailing spaces
+// go, because they are invisible and would otherwise buy a wrap nobody can see.
+//
+// A line that fits is drawn as it was written. A line that does not is wrapped
+// into the room its own indentation leaves, and **the continuation rows carry
+// that indentation**, which is the one thing on the row this function invents. A
+// continuation drawn at column zero would sit level with the next unindented
+// line and read as one, which is exactly the ambiguity preserving the breaks was
+// for. The indent is clamped at half the room so a deeply nested line cannot
+// squeeze its own content out of existence — the same shape as [nameColumn]'s
+// clamp, and it binds only at widths where the whole row is already rubble.
+//
+// Two other continuations were drawn at 46 columns and both lost to that one.
+// A `… ` mark on every continuation, which is what [prewrapped] writes inside a
+// fence, spends two columns of the narrowest rows on this surface to mark a cut
+// where nothing was cut — every word is still on the screen — and it lands on
+// half the rows of an ordinary prose message, which is the common case here and
+// is not a document. A *hanging* indent of two columns past the line's own does
+// tell a continuation from a written line at every indent, and it makes pasted
+// code read as though it were nested one level deeper than it is: on the
+// deciding frame the body of a struct came back at three different columns, and
+// alignment is most of what a person pasting code is showing you. The residual
+// that leaves is real and is not closed: a continuation row sits at the same
+// column as a line the speaker wrote, so on a narrow terminal a wrapped line and
+// a written one are told apart by the words rather than by the shape.
+//
+// The break is at a word rather than at a column, which is the opposite of
+// [prewrapped]'s choice inside a fence and is right for the same reason that one
+// is: there, the region is known to be code and the rows have to reassemble into
+// it exactly; here, nothing knows what the text is, and a break inside a word on
+// an English sentence is a worse cut than a lost space on a line that was never
+// claimed to be code. [clip] stays on every line as the backstop, because
+// [ansi.Wrap] returns the string unwrapped when the limit is under one and comes
+// back two columns wide on a double-width grapheme at a limit of one.
+//
+// Blank rows inside the message are kept and blank rows at either end are not,
+// which is [markdown]'s rule as well: a break between two paragraphs is
+// something the speaker wrote, and a trailing newline is where their paste
+// stopped.
+func wrapped(text string, width int) []string {
+	width = max(width, 1)
+	text = strings.ReplaceAll(text, "\t", "    ")
+
+	var out []string
+	for _, l := range strings.Split(text, "\n") {
+		l = strings.TrimRight(l, " ")
+
+		// No [clip] on this arm, and its absence is deliberate rather than an
+		// omission. The branch is taken because the line already fits, so a cut
+		// here could never fire — it is the guard that cannot fail, which this
+		// package has a standing rule about and three entries in the log. The
+		// backstop lives on the arm below, where a row is assembled from two pieces
+		// and can genuinely exceed what it was given.
+		if lipgloss.Width(l) <= width {
+			out = append(out, l)
+			continue
+		}
+
+		body := strings.TrimLeft(l, " ")
+		indent := strings.Repeat(" ", min(len(l)-len(body), width/2))
+		room := max(width-len(indent), 1)
+		for _, part := range strings.Split(ansi.Wrap(body, room, ""), "\n") {
+			out = append(out, clip(indent+part, width))
+		}
+	}
+
+	for len(out) > 0 && strings.TrimSpace(out[0]) == "" {
+		out = out[1:]
+	}
+	for len(out) > 0 && strings.TrimSpace(out[len(out)-1]) == "" {
+		out = out[:len(out)-1]
+	}
+	if len(out) == 0 {
+		return []string{""}
+	}
+	return out
 }
 
 // scarLine is a fold drawn as an ordinary row, for a surface that draws bits by

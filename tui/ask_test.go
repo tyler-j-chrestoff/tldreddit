@@ -756,8 +756,15 @@ func TestTheFoldNoteCarriesTheIndexAndNoneOfTheContent(t *testing.T) {
 // even with one caller: topWords sorts by a total order and then slices, so if
 // anything ever asks for a different number the two answers agree as far as the
 // shorter one goes.
+// The fixture is [talk]'s sentences rather than [record]'s `bit 0`, `bit 1`,
+// and it had to become so when [topWords] started skipping tokens of fewer than
+// three characters: every word in that record is either "bit" or a digit, so
+// the index collapsed to one word and this test's own guard fired. That is the
+// right failure — a fixture whose vocabulary the rule under test disqualifies
+// cannot exercise the rule — and it is written down here rather than worked
+// around, because the next filter added to that function will do it again.
 func TestTheWordIndexIsAPrefixOfItselfAtEveryLength(t *testing.T) {
-	m := record(fixtureBudget * 3)
+	m := talk(New(), fixtureBudget*3)
 	c := scar(t, m)
 
 	seen := topWords(c.Bag(), personaWords)
@@ -1060,48 +1067,274 @@ func TestTheRequestGoroutineTouchesNeitherViewNorModel(t *testing.T) {
 	}
 }
 
-// What the persona is sent is capped, and the cap is not the screen's.
+// What the persona is sent is capped by the model's window, and not by the
+// screen's height.
 //
-// [Model.budget] is the terminal's height, so without [askCeiling] a tall window
-// asks for more context than the model on the other end will read: at 200x80 the
-// view reaches 74 bits, and measured against a live ollama 0.17.7 a realistic bit
-// costs about 60 tokens against a default window of 4096 — roughly 68 bits, less
-// the system prompt. Dragging a window would change the size, the latency and
-// eventually the answer of every request.
+// [Model.budget] is the terminal's height, so without a second budget a tall
+// window asks for more context than the model has room to read. That second
+// budget used to be askCeiling, sixty *bits* standing in for tokens, measured
+// against a 4,096-token window this program had never asked for and did not
+// know it had (D75). It is [Model.askBudget] now, denominated in tokens and
+// derived from [persona.Persona.Window].
 //
-// Asserted at two heights that both exceed the cap, because one would pass
-// against any constant at all: the two must send the *same* number of turns while
-// their screens hold different numbers of bits. And the newest must be the ones
-// that survive, since a reply is to the tail of a conversation.
-func TestWhatThePersonaIsSentIsCappedBelowWhatATallScreenHolds(t *testing.T) {
+// Four properties, and the fixture has to be able to fail each one separately:
+// what is sent fits the budget; the *newest* turns are the ones that survive;
+// two screens of different heights against one window send the same thing; and
+// a bigger window sends more. The last is the one that a return to any constant
+// fails, and the one no version of this test had before.
+//
+// The window is set small here rather than the conversation being made huge,
+// which is a fixture choice with a reason: at [persona.DefaultWindow] this cap
+// binds only on a conversation of tens of thousands of tokens, so a test that
+// reached it honestly would take a second to build and would be measuring the
+// speed of [tokensIn] as much as anything else.
+func TestWhatThePersonaIsSentIsCappedByTheWindowAndNotByTheScreen(t *testing.T) {
+	// About the length of a real reply from the persona — see the measurement
+	// in [tokensIn]'s comment, which was taken over a record of them.
+	body := strings.Repeat("the schema drift is in the soft-delete columns and nobody backfilled them. ", 6)
+
+	// Every filler bit is the same bytes as every other, and only the last is
+	// different. That is not tidiness: what is sent is priced by content now, so
+	// numbering the bits would make the two screens differ by the width of an
+	// integer — measured, three-digit indices cost one token more each, which
+	// was enough to send five turns instead of six and to fail the claim below
+	// for a reason that has nothing to do with the screen.
+	fill := func(h, window int) Model {
+		m := sized(200, h)
+		m.persona.Window = window
+		for range m.budget() {
+			m.say(localHandle, body)
+		}
+		m.say(localHandle, "the newest thing anybody said. "+body)
+		return m
+	}
+
+	const small, large = 2048, 8192
 	sent := map[int]int{}
 	views := map[int]int{}
 	for _, h := range []int{80, 120} {
-		m := sized(200, h)
-		if m.budget() <= askCeiling {
-			t.Fatalf("a terminal %d rows tall budgets %d, which is under the cap of %d — this fixture cannot reach the cap",
-				h, m.budget(), askCeiling)
-		}
-		for i := range m.budget() {
-			m.say(localHandle, fmt.Sprintf("bit %d", i))
-		}
-		views[h], sent[h] = len(m.shown), len(m.turns())
+		m := fill(h, small)
+		turns := m.turns()
+		views[h], sent[h] = len(m.shown), len(turns)
 
-		if got := len(m.turns()); got > askCeiling {
-			t.Errorf("a terminal %d rows tall sends %d turns, over the ceiling of %d", h, got, askCeiling)
+		if len(turns) >= len(m.shown) {
+			t.Fatalf("a terminal %d rows tall holds %d bits and sends %d turns, so nothing here is capped and nothing is being tested",
+				h, len(m.shown), len(turns))
 		}
-		// The tail, not the head.
+
+		// Re-derived rather than read off the same function that decided it:
+		// the cost of what actually goes on the wire, against the budget.
+		spent := promptFloor + tokensIn(m.persona.System)
+		for _, turn := range turns {
+			spent += turnFraming + tokensIn(turn.Content)
+		}
+		if spent > m.askBudget() {
+			t.Errorf("a terminal %d rows tall sends an estimated %d tokens against a budget of %d",
+				h, spent, m.askBudget())
+		}
+
+		// The tail, not the head: a reply is to the end of a conversation.
 		last := m.shown.Bits(m.store)[len(m.shown)-1].Payload.(memory.Utterance).Text
-		if turns := m.turns(); len(turns) == 0 || !strings.Contains(turns[len(turns)-1].Content, last) {
-			t.Errorf("a terminal %d rows tall does not end its request with the newest bit (%q)", h, last)
+		if len(turns) == 0 || !strings.Contains(turns[len(turns)-1].Content, last) {
+			t.Errorf("a terminal %d rows tall does not end its request with the newest bit", h)
 		}
 	}
-
 	if views[80] == views[120] {
 		t.Fatalf("both terminals held %d bits, so a cap and no cap look the same here", views[80])
 	}
 	if sent[80] != sent[120] {
-		t.Errorf("two screens holding %d and %d bits sent %d and %d turns — the terminal is still deciding how much context the model gets",
+		t.Errorf("two screens holding %d and %d bits sent %d and %d turns against one window — the terminal is still deciding how much context the model gets",
 			views[80], views[120], sent[80], sent[120])
+	}
+
+	// And the window is what decides. Four times the window sends more turns;
+	// a constant of any value sends the same both times.
+	wide := len(fill(120, large).turns())
+	if wide <= sent[120] {
+		t.Errorf("a window of %d sent %d turns and a window of %d sent %d — the budget is not derived from the window",
+			small, sent[120], large, wide)
+	}
+}
+
+// A persona that names no window is budgeted the default one, because that is
+// what the wire will use.
+//
+// [persona.Persona.Window] is zero until somebody sets it, and persona resolves
+// that to [persona.DefaultWindow] when it builds the request. The resolution is
+// unexported there, so this package keeps its own copy of the rule — one fact in
+// two packages, which is the shape this codebase has been bitten by before, and
+// this test is the only thing standing between the two copies.
+func TestAPersonaThatNamesNoWindowIsBudgetedTheDefaultOne(t *testing.T) {
+	m := sized(80, 24)
+	m.persona.Window = 0
+	// Written as a literal half rather than as askShare, and that is the point
+	// of it: the fraction is the decision argued in [Model.askBudget], so a test
+	// that divides by the same constant the code divides by would pass through
+	// any change to it and report nothing.
+	if got, want := m.askBudget(), persona.DefaultWindow/2; got != want {
+		t.Errorf("a persona naming no window budgets %d, want %d — half of persona.DefaultWindow (%d)",
+			got, want, persona.DefaultWindow)
+	}
+	m.persona.Window = 4096
+	if got, want := m.askBudget(), 2048; got != want {
+		t.Errorf("a persona asking for 4096 budgets %d, want %d", got, want)
+	}
+}
+
+// The newest turn is sent even when it alone overruns the budget.
+//
+// A request with the question missing is not a smaller request, it is a
+// different one, and its answer would go into the record as an answer to this
+// one. See [Model.fit].
+func TestTheNewestTurnIsSentEvenWhenItAloneOverrunsTheBudget(t *testing.T) {
+	m := sized(200, 80)
+	m.persona.Window = 64 // smaller than the system prompt, let alone a message
+	m.say(localHandle, "an older thing nobody asked about")
+	m.say(localHandle, strings.Repeat("the whole question, at length. ", 200))
+
+	turns := m.turns()
+	if len(turns) != 1 {
+		t.Fatalf("a budget of %d sent %d turns, want exactly the newest one", m.askBudget(), len(turns))
+	}
+	if !strings.Contains(turns[0].Content, "the whole question") {
+		t.Errorf("the one turn sent is not the newest one: %.60q", turns[0].Content)
+	}
+}
+
+// One turn too big to send does not take the affordable ones behind it.
+//
+// This is the bug `tui-custodian` found on its first pass, and it is worth
+// stating what the failure looked like rather than only what the fix does,
+// because the old behaviour read as a virtue in its own doc. [Model.fit] used to
+// return a contiguous suffix: at the first turn it could not afford it returned
+// everything newer and stopped. So a paste larger than the budget discarded
+// itself *and every turn behind it*, and the walk ended with the budget almost
+// entirely unspent — the person asked a question about a file and the model got
+// the question with nothing else, no sign anything was missing, and its answer
+// went into the record attributed to it.
+//
+// The fixture is that exact shape: affordable history, then one turn nobody can
+// afford, then the question. What is asserted is the part the old code got
+// wrong — that the history behind the oversized turn survives — and not the
+// exact count, which is a property of [tokensIn]'s estimate and would pin this
+// test to a table it is not testing.
+//
+// Against the suffix version this fails on the first assertion, reporting one
+// turn where it wants many. Both facts it checks are load-bearing: the oversized
+// turn is *absent* (whole-or-nothing, since cutting it would forge a quotation)
+// and the older cheap turns are *present* (the budget is spent, not abandoned).
+func TestATurnTooBigToSendDoesNotTakeTheOnesBehindItWithIt(t *testing.T) {
+	m := sized(200, 120)
+	m.persona.Window = 4096
+	for i := range 8 {
+		m.say(localHandle, fmt.Sprintf("ordinary line number %d, said at ordinary length", i))
+	}
+	huge := strings.Repeat("0123456789,2026-08-18T00:00:00Z,1,2,3\n", 2000)
+	m.say(localHandle, huge)
+	m.say(localHandle, "so what is wrong with that?")
+
+	turns := m.turns()
+	if len(turns) < 3 {
+		t.Fatalf("one unaffordable turn left only %d turns of a %d-token budget; "+
+			"the affordable history behind it was dropped with it",
+			len(turns), m.askBudget())
+	}
+	for _, turn := range turns {
+		if strings.Contains(turn.Content, "0123456789,2026-08-18") {
+			t.Error("the oversized turn was sent; a turn goes whole or not at all")
+		}
+	}
+	if !strings.Contains(turns[len(turns)-1].Content, "so what is wrong with that?") {
+		t.Errorf("the newest turn is not last: %.60q", turns[len(turns)-1].Content)
+	}
+	var kept int
+	for _, turn := range turns {
+		if strings.Contains(turn.Content, "ordinary line number") {
+			kept++
+		}
+	}
+	if kept == 0 {
+		t.Error("no ordinary bit from behind the oversized turn survived")
+	}
+}
+
+// [tokensIn] charges dense material more than prose, which is the whole of what
+// it is for and the only part of it a test on this machine can hold.
+//
+// What it cannot hold is the measurement in its comment: that came off a live
+// ollama, and a check whose result depends on which weights happen to be
+// installed is not a check (the same rule [foldNote]'s comment states). So this
+// pins the *shape* of the rule — the orderings and the bounds the margin
+// argument in [Model.askBudget] rests on — against fixtures of each class, and
+// says here rather than in a name that the table is not under test.
+func TestTheTokenEstimateChargesDenseMaterialMoreThanProse(t *testing.T) {
+	const n = 1200
+	prose := strings.Repeat("the record does not forget, the view does. ", n/42)
+	digits := strings.Repeat("2026-08-17T18:59:01Z,4096,32768,0.42,17,ok\n", n/42)
+	code := strings.Repeat("func (m Model) turns() []persona.Turn { return m.fit(out) }\n", n/59)
+
+	rate := func(s string) float64 { return float64(tokensIn(s)) / float64(len(s)) }
+
+	// Ordering. Measured, prose runs about 4.4 bytes to a token and a line of
+	// timestamps and integers about 1.0, so anything that charges them alike is
+	// the estimator this one replaced.
+	if !(rate(prose) < rate(code) && rate(code) < rate(digits)) {
+		t.Errorf("tokens per byte: prose %.3f, code %.3f, digits %.3f — want strictly increasing",
+			rate(prose), rate(code), rate(digits))
+	}
+
+	// A digit is not a letter, and the gap is the largest single fact in the
+	// measurement: a run of digits reads about one token a character and a run
+	// of letters about a quarter of one. Asserted on runs of the same length
+	// with nothing else in them, because the mixed fixtures above pass with the
+	// two weights equal — the punctuation between the numbers carries the
+	// ordering on its own, which is a check that cannot see what it is for.
+	onlyDigits := strings.Repeat("4096 32768 0425 170 ", 32)
+	onlyLetters := strings.Repeat("record and receipt ", 40)[:len(onlyDigits)]
+	if rate(onlyDigits) < 3*rate(onlyLetters) {
+		t.Errorf("%d bytes of numbers estimate %d tokens and the same bytes of words estimate %d — measured, digits cost about four times what letters do",
+			len(onlyDigits), tokensIn(onlyDigits), tokensIn(onlyLetters))
+	}
+
+	// The bound the margin rests on: nothing is charged above one token a byte,
+	// which is where the densest material ever measured sits (0.98).
+	for name, s := range map[string]string{"prose": prose, "digits": digits, "code": code,
+		"japanese": strings.Repeat("これは端末の記録についての会話です。", 40),
+		"emoji":    strings.Repeat("🙂🧠📎🔥✅", 60),
+		"base64":   strings.Repeat("aGVsbG8gd29ybGQgdGhpcyBpcyBhIGJsb2I", 30)} {
+		if r := rate(s); r > 1 {
+			t.Errorf("%s is charged %.3f tokens a byte, over the one-a-byte bound", name, r)
+		}
+		// And a floor, so that a weight collapsing to zero fails here rather
+		// than by sending a model a conversation it has no room for.
+		if r := rate(s); r < 0.1 {
+			t.Errorf("%s is charged %.3f tokens a byte, under any rate ever measured", name, r)
+		}
+	}
+
+	// A run of letters that changes case is not a word, and the measurement
+	// that put this rule in says it costs about twice what a word costs.
+	word := strings.Repeat("conversation understand together sometimes ", 20)
+	mixed := strings.Repeat("conVersaTion undErstand togeTher someTimes ", 20)
+	if len(word) != len(mixed) {
+		t.Fatalf("the two fixtures are %d and %d bytes, so this compares nothing", len(word), len(mixed))
+	}
+	if tokensIn(mixed) <= tokensIn(word) {
+		t.Errorf("%d bytes of words estimate %d tokens and the same bytes with the case broken estimate %d — the case rule is not firing",
+			len(word), tokensIn(word), tokensIn(mixed))
+	}
+
+	// Monotone in what it is given. Nothing about the rule guarantees this on
+	// its own — the run classification looks at neighbours — and a budget that
+	// can fall as a conversation grows would send more of it, not less.
+	grown := ""
+	prev := 0
+	for _, s := range []string{prose, digits, code, "🙂", "x"} {
+		grown += s
+		if got := tokensIn(grown); got < prev {
+			t.Errorf("appending %d bytes dropped the estimate from %d to %d", len(s), prev, got)
+		} else {
+			prev = got
+		}
 	}
 }

@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -54,6 +56,11 @@ const (
 // than resolved in a constructor, so a Client that has been copied or built as
 // a struct literal behaves the same as one that has not.
 //
+// Nothing here shapes what the model says. Where to send and how long to wait
+// are this struct's business; the model, the instruction, the temperature and
+// whether it reasons first all belong to the [Persona], because they are what
+// the record has to be able to reproduce.
+//
 // It is safe for concurrent use exactly as far as [http.Client] is, which is to
 // say: fine, as long as nobody writes the fields while a call is in flight.
 type Client struct {
@@ -92,7 +99,18 @@ type chatRequest struct {
 	Model    string    `json:"model"`
 	Messages []wireMsg `json:"messages"`
 	Stream   bool      `json:"stream"`
-	Options  options   `json:"options"`
+
+	// Think has no omitempty, and that absence is the field's whole point.
+	// Omitted, ollama falls back to the model's own default, which on a
+	// reasoning model is thinking on — measured against 0.17.7 and
+	// qwen3.5:latest, where the same question sent without the key came back
+	// after 8.21s with 2,350 characters of monologue, and sent with an
+	// explicit false came back in 0.22s with none. A tag that dropped the
+	// false would leave [Persona.Think] looking like a control and doing
+	// nothing.
+	Think bool `json:"think"`
+
+	Options options `json:"options"`
 }
 
 type wireMsg struct {
@@ -102,6 +120,29 @@ type wireMsg struct {
 
 type options struct {
 	Temperature float64 `json:"temperature"`
+
+	// NumCtx carries [Persona.Window]. There are three states here and none of
+	// them is a no-op, which is why [Client.Reply] resolves the window before
+	// building this and never leaves it to a default anywhere.
+	//
+	// Measured against a live ollama 0.17.7, same 26,605-token conversation
+	// each time: the key **absent** loads the model at 4096 and reads 4,045
+	// tokens of it; the key present and **zero** loads it at 2048 and reads
+	// 25; the key present at 32768 reads all 26,605. All three come back as
+	// ordinary replies. A zero is not "unset" and it is not harmless — it is
+	// the narrowest window of the three, and the answer it produced was
+	// confidently about a message the model had never seen.
+	//
+	// So the missing omitempty is not the guard it would be on Think, where
+	// dropping the false hands the model back its own default. Dropping a zero
+	// here would substitute a *different* wrong window rather than a right one.
+	// What it buys is that a request always states its window in its own bytes,
+	// so a captured request can be read for what it asked for, and a zero shows
+	// up as a zero instead of as an absence somebody has to interpret.
+	// TestTheWireKeepsAZeroWindowVisible holds it, against a path no caller can
+	// currently reach — deliberately, because the day one can is the day it
+	// matters.
+	NumCtx int `json:"num_ctx"`
 }
 
 type chatReply struct {
@@ -120,12 +161,18 @@ type chatReply struct {
 		// store being append-only — they would stay forever and get folded into
 		// aggregates that nothing can undo.
 		//
-		// Whether the split happens at all is the server's and the chat
-		// template's business, not this client's: no "think" setting is sent, so
-		// a model that writes `<think>…</think>` into its content hands that
-		// over as ordinary text and it is recorded as something the persona
-		// said. See [DefaultModel] for why that is left alone rather than
-		// forced or stripped.
+		// It is empty whenever [Persona.Think] is false, which is the default: a
+		// model asked not to reason has nothing to put here. It is read anyway,
+		// because it is what a caller who turned thinking on gets back, and it
+		// is the only thing that tells "all monologue, no answer" apart from
+		// silence.
+		//
+		// Whether the split happens at all is still the server's and the chat
+		// template's business rather than this client's. Thinking off is a
+		// request, not a guarantee: a model that writes `<think>…</think>` into
+		// its content hands that over as ordinary text, it never reaches this
+		// field, and it is recorded as something the persona said. See
+		// [DefaultModel] for why that is left alone rather than stripped.
 		Thinking string `json:"thinking"`
 	} `json:"message"`
 
@@ -142,6 +189,17 @@ type chatReply struct {
 	// "length" for one that ran out of room. Verified against ollama 0.17.7,
 	// which sends it on every non-streamed reply.
 	DoneReason string `json:"done_reason"`
+
+	// PromptEvalCount is how many tokens of the conversation the model
+	// actually read. It is the only thing on this reply that says anything
+	// about what went in, which is why it is read at all — see
+	// [Answer.PromptTokens] for what it does and does not settle.
+	//
+	// A pointer for the reason Done is one: a server that does not send the
+	// field is saying nothing, and nothing is not zero. Zero would otherwise
+	// read as "it read none of it", which is a claim about a failure that did
+	// not happen.
+	PromptEvalCount *int `json:"prompt_eval_count"`
 
 	// Error is ollama's own explanation. It arrives beside a non-2xx status,
 	// and is read on a 2xx as well because a server that says it failed while
@@ -173,6 +231,61 @@ type Answer struct {
 	// Answer as an ordinary utterance is a silent, permanent falsehood about
 	// what the persona said.
 	Truncated bool
+
+	// PromptTokens is how much of the conversation the model read, in tokens,
+	// as ollama's prompt_eval_count reports it. Zero means the server did not
+	// say — a real reply always read at least one token, so there is no
+	// ambiguity to resolve.
+	//
+	// It is the other end of Truncated. That field is about the answer running
+	// out of room; this pair is about the question. A conversation longer than
+	// Window is cut at the *front* by the server, which keeps the newest turns,
+	// answers normally, and reports nothing about what it dropped: measured
+	// against ollama 0.17.7, a 401-turn conversation sent with no num_ctx came
+	// back having read 4,045 tokens where the same conversation at 32,768 read
+	// all 26,605, and the two replies were identical in shape — same keys, same
+	// done_reason, no field anywhere saying anything had been left out.
+	//
+	// The count is what the model read this time and not what it was charged
+	// for: four repeats of one long conversation, cold and warm, reported the
+	// same number every time, so a warm cache does not discount it in 0.17.7.
+	// That is what makes the growth check below mean anything.
+	//
+	// # What these two numbers do not settle, said plainly
+	//
+	// They cannot tell you that a prompt was cut. The tempting rule — cut if
+	// PromptTokens reaches Window — does not hold, because the server drops
+	// whole turns and stops when what remains fits, so the count lands
+	// somewhere below Window by the size of whatever turn straddled the edge.
+	// Measured on llama3.2:1b at a window of 2,048, over conversations from 555
+	// to 6,495 tokens: everything that fit reported its own true length, and
+	// everything that did not reported 2,041, exactly, every time — seven short
+	// of the window. On qwen3.5:latest the same shortfall was 10 at a window of
+	// 4,096 and 20 at 8,192. The residue is not a constant to subtract, and one
+	// pair settles that: at the same window of 4,096, on the same server, a
+	// 400-turn conversation came back 4,086 and the same conversation with one
+	// more question on the end came back 4,045 — 10 short and 51 short, because
+	// the turns fell differently against the edge. With turns of a few hundred
+	// tokens the residue is a few hundred tokens, and a cut conversation is
+	// then indistinguishable, from one reply, from a short one that fit.
+	//
+	// So this package reports the two facts and makes no claim built on them.
+	// The check that is sound belongs to a caller holding more than one reply:
+	// across a growing conversation PromptTokens must grow, and a count that
+	// stops moving while the record keeps growing is the window binding. That
+	// is exactly the shape a person can be shown, and it needs the caller's
+	// history rather than this struct.
+	PromptTokens int
+
+	// Window is the num_ctx this request asked for, in tokens — always set,
+	// because [Client.Reply] always states one.
+	//
+	// Asked for, not necessarily granted. ollama 0.17.7 clamps a request above
+	// the model's own advertised length instead of refusing it: qwen3:8b
+	// advertises 40,960, a request for 45,000 came back as an ordinary reply,
+	// and the instance loaded at 40,960. So this is what we asked, and
+	// [Client.WindowFor] is what the model will actually give.
+	Window int
 }
 
 // Reply asks the persona to answer, given the conversation so far, and returns
@@ -211,6 +324,19 @@ func (c *Client) Reply(ctx context.Context, p Persona, turns []Turn) (Answer, er
 		}
 	}
 
+	// A window nobody could have meant, refused for the same reason and in the
+	// same place as a missing model: it is a mistake at the call site, and
+	// sending it would have the server decide what to do with it. Zero is not
+	// in this branch — that is a caller who did not say, and [Persona.Window]
+	// says what it gets.
+	if p.Window < 0 {
+		return Answer{}, &Error{
+			Kind:    Unusable,
+			Problem: fmt.Sprintf("the persona %q asks for a window of %d tokens", p.Name, p.Window),
+			Fix:     fmt.Sprintf("give it a positive number of tokens, or leave it at zero for %d", DefaultWindow),
+		}
+	}
+
 	// Checked here rather than left to the transport. An address with no
 	// scheme, or one the http package will not speak, fails at Do with an
 	// error that looks exactly like a server being down — and "start ollama"
@@ -237,11 +363,13 @@ func (c *Client) Reply(ctx context.Context, p Persona, turns []Turn) (Answer, er
 	// Marshal cannot fail for these types — no channels, no functions, no
 	// cycles. Checked anyway, because the alternative is a discarded error that
 	// a future field could quietly start filling.
+	window := p.window()
 	body, err := json.Marshal(chatRequest{
 		Model:    p.Model,
 		Messages: wire,
 		Stream:   false,
-		Options:  options{Temperature: p.Temperature},
+		Think:    p.Think,
+		Options:  options{Temperature: p.Temperature, NumCtx: window},
 	})
 	if err != nil {
 		return Answer{}, &Error{
@@ -407,7 +535,207 @@ func (c *Client) Reply(ctx context.Context, p Persona, turns []Turn) (Answer, er
 			Fix:     "try again, or check the persona's instructions for something that forbids answering",
 		}
 	}
-	return Answer{Text: text, Truncated: truncated}, nil
+	read := 0
+	if reply.PromptEvalCount != nil {
+		read = *reply.PromptEvalCount
+	}
+	return Answer{Text: text, Truncated: truncated, PromptTokens: read, Window: window}, nil
+}
+
+// WindowFor is the largest window this model can be asked for, in tokens, as
+// the server advertises it.
+//
+// It exists because [Persona.Window] is a request and not an agreement.
+// ollama 0.17.7 clamps a window larger than the model's own length rather than
+// refusing it — measured, qwen3:8b advertises 40,960 and answered a request for
+// 45,000 with an ordinary reply and an instance loaded at 40,960 — so a program
+// that only states a number can be wrong about what the model read and never
+// find out. Choosing the number is the person's business, and their machine's
+// memory pays for it; knowing the ceiling is this package's.
+//
+// Nothing is cached. The answer is a fact about a file on disk that changes
+// only when someone pulls a different model, so a cache would be right almost
+// always — and this package's whole shape is that it remembers nothing, because
+// a client that keeps its own copy of what the server said is a second record
+// free to disagree with the first. The call costs about 100–150 ms against a
+// local ollama, measured, which is what makes that easy to hold to.
+//
+// It answers about the model as installed, not about a running instance: a
+// server that has the model loaded at a smaller window still reports the
+// model's own length here.
+func (c *Client) WindowFor(ctx context.Context, model string) (int, error) {
+	// Reply's own refusal, in the same words, because it is the same mistake
+	// and the reader who makes it in one place will make it in the other.
+	if model == "" {
+		return 0, &Error{
+			Kind:    Unusable,
+			Problem: "no model was named, so there is nothing to ask about",
+			Fix:     "name one — for example: " + DefaultModel,
+		}
+	}
+	if err := usable(c.base()); err != nil {
+		return 0, err
+	}
+
+	// The failure paths below hand this to the same helpers Reply uses, which
+	// speak about a persona. There is no persona here — a model is not one —
+	// so this is the model wearing the only field those messages read.
+	as := Persona{Model: model}
+
+	body, err := json.Marshal(struct {
+		Model string `json:"model"`
+	}{model})
+	if err != nil {
+		return 0, &Error{
+			Kind:    Unusable,
+			Problem: fmt.Sprintf("the model name %q could not be encoded to send", model),
+			Err:     err,
+		}
+	}
+
+	endpoint := strings.TrimSuffix(c.base(), "/") + "/api/show"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return 0, unusableAddress(c.base(), err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient().Do(req)
+	if err != nil {
+		return 0, c.sendFailed(ctx, as, err)
+	}
+	defer resp.Body.Close()
+
+	// The same cap as a reply, and it is not slack here: /api/show returns the
+	// licence, the Modelfile, the chat template and a tensor list, and measured
+	// on this machine that is 42 KB for llama3.2:1b and 83 KB for
+	// qwen3.5:latest — two orders under maxBody, and nowhere near a single
+	// number's worth.
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxBody+1))
+	if err != nil {
+		if stopped := c.calledOff(ctx, as, err); stopped != nil {
+			return 0, stopped
+		}
+		return 0, &Error{
+			Kind:    Garbled,
+			Problem: fmt.Sprintf("ollama at %s stopped part way through describing %q", c.base(), model),
+			Fix:     "try again — if it keeps happening, check the ollama server's own log",
+			Err:     err,
+		}
+	}
+	if len(raw) > maxBody {
+		return 0, &Error{
+			Kind:    Garbled,
+			Problem: fmt.Sprintf("whatever is at %s sent more than a model description could be", c.base()),
+			Fix:     "check that the address points at ollama and not at another server",
+		}
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		said := ollamaSays(raw)
+		if aboutTheModel(said, model) {
+			return 0, &Error{
+				Kind:    NoModel,
+				Problem: fmt.Sprintf("ollama is running, but the model %q is not installed", model),
+				Fix:     "pull it with: ollama pull " + model,
+				Err:     errors.New(said),
+			}
+		}
+		var cause error
+		if said != "" {
+			cause = errors.New(said)
+		}
+		return 0, &Error{
+			Kind:    Garbled,
+			Problem: fmt.Sprintf("something is listening at %s, but it does not answer like ollama", c.base()),
+			Fix:     "check that the address points at ollama and not at another server",
+			Err:     cause,
+		}
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		var cause error
+		if said := ollamaSays(raw); said != "" {
+			cause = errors.New(said)
+		}
+		return 0, &Error{
+			Kind: Rejected,
+			Problem: fmt.Sprintf("ollama refused to describe %q: %s",
+				model, because(raw, resp.StatusCode)),
+			Err: cause,
+		}
+	}
+
+	var shown struct {
+		Info map[string]json.RawMessage `json:"model_info"`
+	}
+	if err := json.Unmarshal(raw, &shown); err != nil {
+		return 0, &Error{
+			Kind:    Garbled,
+			Problem: fmt.Sprintf("ollama at %s described %q, but not in a shape this client can read", c.base(), model),
+			Fix:     "check the ollama version — this client reads model_info from /api/show",
+			Err:     err,
+		}
+	}
+	return contextLength(shown.Info, model, c.base())
+}
+
+// contextLength picks the advertised window out of /api/show's model_info.
+//
+// The key is architecture-prefixed and there is no fixed spelling of it:
+// verified against ollama 0.17.7, qwen3.5:latest reports it as
+// "qwen35.context_length" and llama3.2:1b as "llama.context_length", so the
+// suffix is the only stable part and the prefix is whatever the GGUF says the
+// architecture is.
+//
+// Two keys ending that way is a refusal rather than a choice. Nothing in that
+// map says which architecture is the model's, so picking the first match would
+// be reporting an arbitrary number for a definite question — and the map holds
+// several near neighbours already (qwen3.5:latest carries a
+// "qwen35.vision.embedding_length"), which is exactly how a future model comes
+// to carry a second length that is not the conversation's.
+func contextLength(info map[string]json.RawMessage, model, base string) (int, error) {
+	var named []string
+	for k := range info {
+		if k == "context_length" || strings.HasSuffix(k, ".context_length") {
+			named = append(named, k)
+		}
+	}
+	slices.Sort(named)
+
+	switch len(named) {
+	case 0:
+		return 0, &Error{
+			Kind:    Garbled,
+			Problem: fmt.Sprintf("ollama at %s does not say how much %q can hold", base, model),
+			Fix:     "check the ollama version — this client reads a context_length from /api/show",
+		}
+	case 1:
+	default:
+		return 0, &Error{
+			Kind: Garbled,
+			Problem: fmt.Sprintf("ollama at %s gives %q more than one context length: %s",
+				base, model, strings.Join(named, ", ")),
+			Fix: "this client cannot tell which is the conversation's — report it, and set the window by hand meanwhile",
+		}
+	}
+
+	var n json.Number
+	if err := json.Unmarshal(info[named[0]], &n); err != nil {
+		return 0, &Error{
+			Kind:    Garbled,
+			Problem: fmt.Sprintf("ollama at %s gives %q a %s that is not a number", base, model, named[0]),
+			Err:     err,
+		}
+	}
+	held, err := n.Int64()
+	if err != nil || held <= 0 || held > math.MaxInt32 {
+		return 0, &Error{
+			Kind:    Garbled,
+			Problem: fmt.Sprintf("ollama at %s says %q holds %s tokens, which cannot be a window", base, model, n.String()),
+			Err:     err,
+		}
+	}
+	return int(held), nil
 }
 
 // calledOff reports the failures that are somebody's decision rather than the

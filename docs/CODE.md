@@ -527,6 +527,62 @@ config and isn't tracked, so a fresh clone needs
   nondeterministic proof first landed in. `TestAStrandedCheckIsNeitherRedNorIgnored`
   checks a check outside the cited set that never finished is reported apart
   from one that failed.
+- `cmd/cite/` and `docs/CITATIONS.md` (D69) — the citation check, and the
+  sibling of `cmd/seam` rather than a part of it: `seam` mutates code and
+  asserts a cited test reddens; `cite` computes over a cited *source* and
+  asserts the record's own sentence states the result. It is a second tool
+  and not a mode of the first because `seam` samples a control on both sides
+  of every mutation and costs 17m35s, while this is milliseconds, and
+  D68(f)'s whole complaint was "before it is committed" — folding the fast
+  check into the slow one would stop it running at the moment it exists for.
+  Nine verdicts: `agrees`, `disagrees`, `truncated`, `unquoted`,
+  `misquoted`, `ambiguous-region`, `not-in-source`, `evidence-missing`,
+  `evidence-moved`. **Sources are addressed but not vendored** — the catalog
+  carries each text's SHA-256, byte length, origin URL, the PDF's own
+  SHA-256 and the extraction recipe, and the bytes live in a cache named for
+  the address (`$TLDR_SOURCES`, else `$XDG_CACHE_HOME/tldreddit/sources`).
+  A fresh clone therefore *cannot* run the source-reading half and says so
+  loudly with `evidence-missing`; vendoring 1.7MB of third-party papers into
+  a public tree that is append-only from its root (D23) was refused as a
+  one-way door. `memory.ID` was considered for addressing sources and
+  refused: it addresses a `Bit` and panics outside the closed payload set, so
+  using it would mean inventing a Bit shape for a paper rather than
+  addressing its bytes, and a plain SHA-256 is checkable by a stranger with
+  `sha256sum` and none of our code.
+- `cmd/cite/catalog.go` — the block parser and the source manifest. `fold`,
+  `flatten` and `then` deliberately have **no defaults**, which is D69(c)
+  encoded rather than described: a count is a claim about a string, a case
+  rule and a whitespace rule, and the defect that produced this tool was a
+  record stating one of the three.
+- `cmd/cite/check.go` — the primitives. One counter over (source, region,
+  needle, fold, flatten), and the quotation check whose `then:` is the
+  continuation to the end of the source's own sentence. That field is the
+  answer to a truncated quotation and its limit is stated where it lives:
+  it converts an invisible omission into a visible one and does not
+  evaluate the inference a reader then draws.
+- `cmd/cite/entries.go` — the record side, and the half that needs no cache.
+  It resolves every citation into `docs/DECISIONS.md` and is what makes the
+  catalog un-launderable: the expected figure must appear in the entry's own
+  quoted sentence and that sentence must occur exactly once in the cited
+  clause, so editing a block to agree with a source turns it `unquoted`
+  rather than `agrees`.
+- `cmd/cite/report.go`, `cmd/cite/main.go` — the report and the CLI. Every
+  verdict prints its needle and its case rule beside the entry's sentence,
+  on the reasoning that the failure this cannot reach — a needle that is not
+  what its sentence means — is at least made visible in one line rather than
+  buried in a PDF.
+- `cmd/cite/cite_test.go` — the tool's own tests, and the one that matters is
+  `TestEveryVerdictHasAWitness`, which asserts the verdict vocabulary and the
+  witness set match **in both directions**. That second direction was a real
+  hole found by running a stub rather than reading the test: deleting a
+  verdict while keeping its row stayed green until the second loop existed,
+  which is D48's shape inside the instrument built to answer D68(f).
+  `TestEveryShippedCitationResolvesIntoTheRecord` is the cache-free half and
+  so runs in the commit gate; `cmd/cite` itself deliberately does **not** join
+  `.githooks/pre-commit`, because a gate that fails for want of a cache fails
+  for the wrong reason (D69(d)).
+  Re-check: `TLDR_SOURCES=<cache> go run ./cmd/cite`, and `go test ./cmd/cite/`
+  for the half that needs nothing.
 - `memory/cool.go` — `Cool` now *derives*: nothing is removed, the cold bit
   takes the view's slot while every absorbed bit stays in the store. Its
   `Prev` is every bit in the window, in window order (D13). `Compaction`'s
@@ -639,6 +695,74 @@ config and isn't tracked, so a fresh clone needs
   is *for* — `memory` refuses to name the human itself, see `memory.Stay`).
   Accessors rather than exported variables, so the answer stays this package's to
   give: a caller may ask who the human is and may not decide it.
+- `tui/markdown.go` — the document path, and the only place in `tui/` that
+  calls another package to render (`charm.land/glamour/v2`, with
+  `github.com/alecthomas/chroma/v2` under it for syntax colour). It exists
+  because of the first-user report D51 exists to produce: a founder asked a
+  model for a Go program and the reply arrived on screen as one unbroken
+  sentence with the whole program flattened into it. The record was intact —
+  this was a view defect start to finish, and nothing here reaches the store
+  or a content address. `structured(text)` is the gate and is the design
+  decision rather than a filter: a bit is drawn as a document only when it has
+  a line break *and* a line opening with a fence, an ATX heading or a list
+  item, because rendering markdown spends a speaker's own punctuation
+  (`**bold**` loses four asterisks, `-` becomes `·`) and this block's contract
+  is that the record's characters are on the screen. Everything else takes
+  `wrapped` (`tui/unfold.go`), which since D73's session keeps a message's own
+  lines and indentation and wraps only a line too long for the terminal —
+  pinned by `TestAnExpandedRowKeepsTheWordsAndTheLineBreaksTheRecordHolds`,
+  which is the renamed `TestAnExpandedRowShowsEveryWordAndNotTheLineBreaks`
+  asserting the opposite of what it used to. Nothing on that path interprets
+  anything: no marks are spent and an unfenced paste is never guessed to be
+  code. `mdStyle(quiet)` carries
+  structure in marks and space before colour: headings keep their `#`
+  characters, a bullet is the `·` this surface already uses, inline code keeps
+  its backticks (via `Prefix`/`Suffix` — `CodeSpanElement` ignores the `Block`
+  pair, which glamour's own `notty.json` gets wrong), and a code block is
+  indented rather than boxed, so the whole thing still reads under `NO_COLOR`.
+  The **quiet** arm emits no styling at all rather than merely no colour, and
+  that is a correction found on a frame: glamour closes an inner span with a
+  full reset, so one bold heading inside `cooling.Render(...)` turned the fade
+  off for the rest of that line and a cooling document came back bright.
+  `chroma(quiet)` returns `nil` when quiet rather than a colourless palette,
+  because glamour registers a Chroma block under **one global style name** and
+  skips the registration if it is taken — two configs differing only in colour
+  silently become one. Syntax colours are hex, the one place this package does
+  not use an ANSI index, because chroma's parser accepts `#rrggbb` and nothing
+  else and an index reaches `chroma.MustNewStyle` as a **panic inside Render**;
+  that is also why `markdown` recovers and falls back to the plain wrap rather
+  than letting a message crash the record's window onto itself. There is
+  deliberately **no width floor** — swept from one column up, the document
+  costs rows at every width and carries structure at every width, and a floor
+  would mean a person dragging a terminal narrower watches a document turn into
+  a wall of text at one particular column. See `docs/DEBT.md` for the four
+  things this leaves open.
+- `tui/markdown_test.go` — the document path's checks, every one of them the
+  sole catcher of at least one mutation (table in
+  `.claude/craft/tui-design-engineer.md`).
+  `TestADocumentKeepsItsHeadingsListsAndCodeBlock` is the headline and asserts
+  over *rows* rather than colour, deliberately: the style's whole argument is
+  that structure is carried by marks and space, so a check reading an SGR would
+  be checking the channel that does not matter.
+  `TestProseIsNeverDrawnAsADocument` is the fidelity half of the gate — a
+  sentence carrying `2 * 3 * 4`, `--dry-run`, `created_at`, `_do not_` and
+  `` `rm -rf` `` comes back with every character.
+  `TestACoolingDocumentKeepsEveryColumnItHadWhenItWasHot` pins both fade
+  defects at once: the two arms agree line for line (nothing re-wraps when a
+  bit starts cooling) and the cooling arm carries no style instruction at all.
+  `TestNoDocumentRowRunsPastTheWidthItWasGiven` sweeps one column to 120 and
+  also refuses a tab, which every measurement here counts as one column and a
+  terminal draws as eight. `TestADocumentIsADocumentAtEveryWidth` is the
+  negative result stated as a check: it goes red the moment somebody adds a
+  floor. `TestDrawingADocumentChangesNothingTheRecordHolds` is the one that
+  keeps this a view change. `TestADocumentDoesNotShowItsOwnSource` is the
+  crudest check in the file and the one the style answers to: strip every
+  escape, and no row may open with a hash or a fence, no `**` may be on the
+  screen, a code span must still have its delimiters, and exactly one row —
+  the heading — must be in capitals. `TestAWrappedCodeLineStaysInsideItsBlock`
+  asserts a continuation's *column*, which is the defect it was written for,
+  and `TestAWrappedCodeLineIsExactlyReversible` asserts the rows concatenate
+  back to the speaker's own line across a sweep of widths.
 - `tui/style.go` — the palette: `dim`, `rule`, `speaker`, `system`, `warm`,
   `hot` (the terminal's own foreground, left unstyled on purpose — recent
   material should look like the terminal rather than a theme) and `cooling`
@@ -714,7 +838,7 @@ config and isn't tracked, so a fresh clone needs
   compile-time impossibility rather than a `-race` finding to hope for.
 - `tui/render.go` — `transcript(frame)` draws every row but the caret's row
   through `said()`, shared with the receipt so the two cannot drift. The
-  caret's own row is drawn whole instead, by `saidWhole()` (`render.go:262`),
+  caret's own row is drawn whole instead, by `saidWhole()` (`tui/unfold.go:527`),
   wrapped across as many rows as its sentence needs rather than cut at the
   margin — the one variable-height row this surface has, which is why a
   view's drawn height is the bit count plus one bit's worth of wrapping and
@@ -805,7 +929,8 @@ config and isn't tracked, so a fresh clone needs
   receipt always uses — one row per absorbed bit, never wrapped — and the
   one `render.go`'s transcript uses for every row except the caret's; the
   caret's own row there is drawn instead by `saidWhole(frame, b, width)`, wrapped
-  across as many rows as it needs. Both take the frame because a **fold**
+  across as many rows as it needs — or, when the bit was written as a document,
+  handed to `tui/markdown.go` and drawn as one. Both take the frame because a **fold**
   drawn as a row is not a fact about that bit alone: they route a
   `memory.Compaction` to `scarLine`, which gives the ranked surface the same
   quotation the transcript's scar carries, so one object has one account of
@@ -835,6 +960,52 @@ config and isn't tracked, so a fresh clone needs
   adversarial `Count` is unconstructible from outside `memory`, so this half is
   defence in depth and is deliberately unpinned rather than pinned by a test
   that reaches into another package's internals to fabricate one.
+- `tui/segment.go` — cuts a message into the blocks its own author marked
+  (`segments`: prose, heading, list item, fence), for every surface that has
+  one row rather than a screen, and for nothing else — `oneLine` still
+  answers "what does the record hold," and this stays a view concern by
+  ruling (D72(a)): nothing here reaches the store or a content address.
+  Two callers ask two different questions of the same cut and get different
+  answers on purpose. `lede(text)` is a *display* of a message on one row,
+  and it may spend marks that are redundant with what it draws — a heading's
+  hashes go and its words are capitalised, a list item's dash becomes the
+  `·` this surface already uses between things on a row, doubled emphasis
+  (`**bold**`, `__bold__`) is dropped but a single `*`/`_` never is (that
+  asymmetry is what keeps `2 * 3 * 4` and `snake_case_name` untouched), and a
+  fence contributes its own first line in backticks rather than a summary.
+  `opening(text)`, by contrast, is a *quotation* for `frame.quoted` and may
+  spend nothing at all: it returns a block verbatim or nothing, and it skips
+  a fenced region rather than merely refusing to open on one — closing the
+  defect where a scar's quotation drew a fold's absorbed program with the
+  fence markers inside the quotation marks and a stray `"` closing it early.
+  Both share `structured`'s gate with the block renderer in `markdown.go`, so
+  a message with no block mark in it is one paragraph on every surface here,
+  not a document on one and prose on another.
+- `tui/segment_test.go` — `segment.go`'s tests, and the file that fixes
+  `program`, a message that is nothing but a fenced Go block, as the shared
+  fixture for the defect the segmenter exists to close: there is no prose in
+  it to quote and the characters that most resemble prose are inside a
+  string literal. `TestARowShowsWordsAndNotMarkdownSource` and
+  `TestAMessageWithNoBlockMarkIsUntouchedOnItsRow` are `lede`'s two halves —
+  marks are spent on a structured message and nothing is spent on prose.
+  `TestOnlyDoubledEmphasisIsSpentOnARow` pins the asymmetry between doubled
+  and single emphasis marks by table. `TestAScarNeverQuotesFromInsideAFence`
+  and `TestAFoldWithAProgramInItStillQuotesASentence` are `opening`'s two
+  halves, named as corroborating rather than sole witnesses of the claim
+  `TestAQuotationKeepsTheMarksTheSpeakerTyped` states directly — a fold of
+  nothing but programs quotes nothing and falls back to the rung with a
+  count and a key, while a fold with one sentence in it still quotes the
+  sentence, and a quotation never carries the row's own rendering (a heading
+  keeps its hashes and is never upper-cased inside quotation marks).
+  `TestTheWordIndexSkipsPunctuationGradeTokens` checks `topWords` drops
+  tokens under three runes, measured against a real fixture where a loop
+  variable (`j`, `s`, `1`, `t`) outranked every English word in a ten-bit
+  fold window. `TestAFenceIsClosedOnlyByItsOwnRun` and
+  `TestAMessageThatIsOnlyAProgramStillHasARow` cover a fence closed only by
+  its own opening run (so `~~~` does not close a ` ``` `) and the case that
+  decided this whole design — a message that is only a program still has to
+  say something on its row, which is its own first line of code rather than
+  a blank row or a summary.
 - `tui/ranked.go` — D3's surface on the TUI side: `ctrl+t` swaps the
   transcript for a second reading of the record, ordered by what has been
   voted on rather than by time. `Model.judged()` builds the view it ranks
@@ -865,7 +1036,7 @@ config and isn't tracked, so a fresh clone needs
   headed by `band()` headings that group rows by the reader's own standing
   vote, kept above let go, with `gutterCell()` drawing the caret and the
   scar's own rule in the margin the transcript spends on the fade instead.
-  Built (D49), extended so the caret's own row
+  Built in `61ecb14` (D49), extended in `94b7d42` so the caret's own row
   draws whole rather than cut at the margin, the same shape `render.go`'s
   `saidWhole` gives the transcript (D53(g), D54(b)). **This file is under
   active work this checkpoint** — its column arithmetic and exact widths
@@ -924,6 +1095,37 @@ config and isn't tracked, so a fresh clone needs
   D45's own catalog cites by test *name*, so it catches a rename;
   it structurally cannot catch a wrong file path in prose, which is what
   this correction was.
+- `tui/budget_test.go` — the fold budget's tests, for the defect D73
+  describes: `Model.budget()` returns a count of rows and, until this
+  change, was compared against a count of *bits*, which are the same number
+  only while every bit draws one row — a bit written as a document breaks
+  that, and five bits could fill three screens while the gauge read a fifth
+  full. `TestATallBitCostsMoreOfTheBudgetThanAShortOne` and
+  `TestTheGaugeReadsTheSameUnitAtBothEnds` state the fix directly and are
+  marked corroborating rather than sole, since every mutation they catch is
+  also caught by one of the others in this file.
+  `TestTheBudgetAndTheRendererAgreeAboutABitsHeight` pins `Model.rows` as
+  `len` of what `saidWhole` draws, including through the per-address memo,
+  swept at three terminal sizes and caught, on review, dropping the memo
+  when the room changes so a resize does not read the previous size's
+  heights. `TestNoBitIsChargedMoreThanHalfAScreen` pins the half-screen cap
+  (D73) that keeps a fold's window from collapsing to one bit (D32) and the
+  cut from stranding an answer from its question, on a fixture of a document
+  every sixth turn — measured at 0% of frames blocked and 0% opening on an
+  orphaned answer, against 16.5% and 33.0% without the cap.
+  `TestAScreenTooSmallForARoundDegradesRatherThanBreaking` is the named
+  residual this leaves open (in `docs/DEBT.md`): at one document in two on a
+  100×30 screen, two answers are the whole budget and `keepFrom` has no
+  range left to move the cut in, so the tail does not always begin where the
+  human spoke — asserted here only to degrade rather than break, every bit
+  that leaves the screen still landing in a scar's receipt.
+  `TestNothingIsAbsorbedWithoutFadingFirstWithDocumentsInTheRecord` is the
+  same promise `TestNothingIsAbsorbedWithoutFadingFirst` holds for one-line
+  records, reasserted because a row-weighted budget breaks the identity that
+  let the one-line version stand in for it — the fold and the fade now have
+  to be asked of the same view's room rather than merely by the same rule,
+  swept at three terminal sizes because a late-arriving handle under a
+  longer name was, on its own, enough to widen every bit's height mid-run.
 - `tui/harness_test.go` — prints real rendered frames at chosen sizes under
   `HARNESS=1`; most tests here assert nothing, by design. `screen`/`profiled`
   now push every frame through `colorprofile.Writer` at a chosen
@@ -979,7 +1181,7 @@ config and isn't tracked, so a fresh clone needs
   passes green under either mutation, which is what makes these the tests
   that hold the claims up.
 - `cmd/tldr/record.go` — the program's side of persistence, and it was missing
-  from this file for a whole unit: that commit landed it and did not add an
+  from this file for a whole unit: `4de7ef5` landed it and did not add an
   entry here, which is the staleness D52(f) is about, committed by the same
   hand that wrote D52(f) down. One file holds three concatenated streams — the
   record, the transcript view, the vote view, in that order — because three
@@ -1271,10 +1473,14 @@ config and isn't tracked, so a fresh clone needs
   and be two different participants in the record, so `Persona.Handle()`
   names the persona and not the weights alone (`"ollama/"+Model` as the ref,
   the persona's own `Name` as the display — `memory.Handle`'s own split,
-  used as intended). `System` and `Temperature` are deliberately *not* part
-  of that handle: two personas differing only in instruction are one
-  participant as far as the record is concerned, a claim the package doc
-  flags as worth noticing if it turns out wrong. `DefaultModel` is
+  used as intended). `System`, `Temperature` and `Think` are deliberately
+  *not* part of that handle: two personas differing only in instruction are
+  one participant as far as the record is concerned, a claim the package doc
+  flags as worth noticing if it turns out wrong. `Think` sits beside
+  `Temperature` for that field's own stated reason — a voice that depends on
+  a setting nobody wrote down cannot be reproduced — and because two personas
+  on one server can disagree about it, which a field on the connection could
+  not express. `DefaultModel` is
   `qwen3.5:latest`, and its doc comment is where the reasoning-model leak
   this package accepts rather than fixes is argued — see `client.go`.
   `Role`/`Turn` are the wire-facing vocabulary, deliberately not
@@ -1291,7 +1497,19 @@ config and isn't tracked, so a fresh clone needs
   as a finished thought would be a silent, permanent falsehood in an
   append-only record. `reply.Message.Thinking` is read and never
   concatenated onto the answer, by design stated in its own doc comment: a
-  model's scratchpad is not something it said. `usable()` checks the base
+  model's scratchpad is not something it said. `Persona.Think` (in
+  `persona.go`, beside `Temperature` — it shapes the voice, so it belongs to
+  the participant and not to the connection) reaches the wire from here as
+  an explicit `"think": false` with no `omitempty`: omitted, ollama falls
+  back to the model's own default, which on a reasoning model is on, so an
+  omitempty there would be a setting that cannot fail. Measured against
+  ollama 0.17.7 and `qwen3.5:latest` at temperature 0: 0.22–0.25s off,
+  roughly 8–66s on. `TestReplySendsAnExplicitThinkSetting` and
+  `TestAPersonaThatSaysNothingDoesNotAskForThinking` pin both halves —
+  the second is the one holding the zero value fast for any caller that
+  never mentions the field — `tui`'s `defaultPersona()` names it anyway,
+  for reproducibility rather than for effect.
+  `usable()` checks the base
   URL can address an HTTP server before anything is sent, so a bad address
   fails with an actionable message rather than one indistinguishable from a
   stopped server. `calledOff()` tells a caller's own cancel apart from the

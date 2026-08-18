@@ -1,5 +1,51 @@
 # Open debt
 
+- **A fold can still open the view on an answer whose question it took, once a
+  message can be half a screen — and closing it needs a ruling in `memory/`.**
+  The budget counts rows now (`Model.rows`), which is what the unit mismatch
+  needed; the residual is that D58's move of the cut back to the last thing the
+  human said cannot always happen any more. The cause is structural rather than a
+  bug: a record with documents in it is large in *rows* and small in *bits*, D32
+  requires the fold's window to be at least two bits, and those two together
+  leave `keepFrom` no range to move the cut in. Measured at 100x30 with a fenced
+  36-row answer every sixth bit: **18 of 38 folds** open on an answer whose
+  question has gone, against 0 before; at every other bit, 58 of 116. It is a
+  legibility defect and not a reachability one — the scar directly above is the
+  receipt and `ctrl+u` opens it, which is D58(g)'s own ruling on the same shape.
+
+  **What would close it is D32's size rule, which is not this seat's.** D32
+  refuses to cool a run of one on the grounds that folding a single bit into a
+  scar standing for one bit buys nothing. That stops being true when the one bit
+  is half a screen: replacing eleven rows with one is exactly what the fold is
+  for. Allowing a run of one *when the run costs more than a row* would give
+  `keepFrom` its range back. It reaches a content address and belongs to
+  `principal-go-engineer`.
+
+  Two figures that are not residuals and are recorded so nobody re-derives them:
+  the fold rate rises with the share of the conversation that is documents — 22
+  folds in 300 writes with none, 53 at one in eleven, 296 at one in two — and the
+  scars merge rather than pile up, so a high rate produces one receipt standing
+  for many bits rather than many small ones (measured: 37 bits behind one scar
+  after 40 writes at one document in two).
+- **The segmenter cannot reach the fold's word bag, so a program's tokens are
+  still counted into it.** D72(a) says a fenced region is segmented for "layout,
+  budget, quoting and the word index"; three of those are `tui/`'s and the
+  fourth is not. `Compaction.Bag` is built by `memory/cool.go` and reaches
+  `ID(cold)`, so excluding fenced words at the source re-addresses every scar on
+  disk. What shipped instead is `topWords` skipping tokens of fewer than three
+  characters (ruled this session), which removes the loud half — measured on a
+  40-bit fold at 100x30, one fenced reply put `j`, `s` and `1` in the three most
+  prominent of the persona's twelve slots — and leaves the quiet half:
+  `func`, `int`, `len`, `err` are words by that rule and are not what the window
+  was about. Re-check: build a ten-bit window with and without a fenced reply
+  and print `topWords(c.Bag(), personaWords)` for each.
+- **A quotation can still contain a quotation mark, when the mark is in prose.**
+  `opening` refuses a message that starts with a fence, which is where the
+  problem was acute — `import "fmt"` closed the quotation four words early — but
+  an ordinary paragraph with a quoted phrase in it still puts one between the
+  marks. Left open on the grounds that it reads as nested speech rather than as
+  a broken assertion, and that no rule which removed it could leave the words
+  verbatim, which is the whole contract of that row.
 - **`decode` accepts a file with a fourth view stream, drops it, and says
   nothing** (`cmd/tldr/record.go`). The three streams are self-delimiting so a
   reader that has taken its three simply stops; there is no framing question it

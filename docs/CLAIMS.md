@@ -1786,6 +1786,50 @@ red: TestTheWireCarriesNoBoundaryTheRecordHeld
 sole: true
 ```
 
+## An `omitempty` on the thinking flag is a setting that cannot fail
+
+`Persona.Think` is off in the zero value, because a reasoning model left to
+itself writes out its monologue before answering and a person at the keyboard
+pays for it on every turn. Measured against ollama 0.17.7 and `qwen3.5:latest`
+at temperature 0, the same one-line question: 0.22–0.25s and 8 evaluated tokens
+with thinking off, against roughly 8–66s and 636–5,120 tokens with it on. The
+range is the honest form: the off arm is flat and the on arm is not, so a single
+sample of the on arm says almost nothing — eight of them landed between 8.05s
+and 65.63s on one machine, with one model, asking one question.
+
+The mutation is the edit a tidy-minded reader would make, and it is why this
+block exists rather than a comment saying not to. `omitempty` drops a false from
+the JSON, ollama reads an absent `think` as *the model's own default*, and on a
+reasoning model that default is on — measured twice on separate machines-worth
+of samples, 913 and 1,122 evaluated tokens where an explicit false gives 8. So
+the field would sit there looking like a control while nothing changed. That is
+D27's shape inside a request body: not a check that cannot fail, a **setting**
+that cannot.
+
+Both cited checks redden and they are not the same fact, which is worth spelling
+out because the obvious single check covers neither hole. The table's `think
+true` row is the only thing that reddens a dropped `Think: p.Think` assignment,
+since a dropped assignment still sends the zero value and false is what the rest
+of the suite wants. The persona-says-nothing check holds the guarantee for a
+caller that never mentions the field at all, which is the shape the surface and
+every future caller actually build — it is not what catches an inversion, since
+the table asserts an exact value and reddens on `!p.Think` by construction.
+*That sentence read "the table alone would accept as 'some value was sent'"
+until a review re-derived the mutations: it described the weaker table this
+block argued against writing, not the one that shipped.* Measured
+under all three mutations rather than predicted: `omitempty` reddens the `false`
+row and the persona check, a dropped assignment reddens the `true` row alone,
+and an inverted `!p.Think` reddens all three.
+
+```seam
+id: thinking-flag-omitted-when-false
+file: persona/client.go
+find: Think bool `json:"think"`
+after: Think bool `json:"think,omitempty"`
+red: TestReplySendsAnExplicitThinkSetting, TestAPersonaThatSaysNothingDoesNotAskForThinking
+sole: true
+```
+
 ## Each model family spells its own boundary, so the rule is not one family's
 
 Measured the same way: `<|eot_id|>` is one token to `llama3.2:1b` and eight to
