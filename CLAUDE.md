@@ -7,17 +7,11 @@ actually see it thinking.
 > private repository holds only what does not publish: `docs/PRIVATE.md`,
 > `docs/PRIVATE-DECISIONS.md` (the 24 entries missing from the log here),
 > `docs/board.html`, `docs/handoffs/`, `.claude/craft/` and the archived
-> manifest — nothing is ever copied between the two, and anything that would be private material is written there
-> directly rather than removed from here later. This history is append-only
+> manifest — nothing is ever copied between the two, and anything that would
+> be private material is written there directly rather than removed from here
+> later. This history is append-only
 > from its root: a mistake already pushed is fixed by a new commit, never an
 > amend, while an unpushed local commit is fixed by amending it.
->
-> **The two directory names still mean the opposite of what they say** — this
-> working repository sits at `/home/tyler/code/tldreddit-public`, the private
-> one at `/home/tyler/code/tldreddit` — and the rename is the first action of
-> the *next* session, not this one (D81(f)); this warning comes out the
-> moment that happens. Full reasoning: D15, D23, D78, D79, D81 in
-> `docs/DECISIONS.md`.
 
 ## What we are building, in one paragraph
 
@@ -209,9 +203,9 @@ order of authority, highest first:
    what happened, as opposed to what someone wrote down about it. Commit
    messages here are long on purpose, so `git log` is usually the fastest
    true account of a session. The context repository at
-   `/home/tyler/code/tldreddit` has its own separate history — check both if
-   you can see both; this repository alone still tells you what landed here
-   and when, and since D81 nothing is copied from one into the other, so
+   `/home/tyler/code/tldreddit-context` has its own separate history — check
+   both if you can see both; this repository alone still tells you what landed
+   here and when, and since D81 nothing is copied from one into the other, so
    neither history produces the other's.
 2. **`docs/DECISIONS.md`.** What was decided and why. Append-only, so a
    contradiction between two entries is real information: the later one wins,
@@ -361,8 +355,8 @@ there. One line per decision below, title only, verified against that file's
 own headings on 2026-08-16 — D61's line carried backticks around `Prev` that
 the actual heading does not have, and is fixed above; every other entry
 through D66, including D47's line fixed at the 2026-08-14 check, matched.
-D78 through D81 are new since that check and match their headings here
-exactly (`grep -n '^## D8[01]' docs/DECISIONS.md`). Three entries, D61, D72
+D78 through D82 are new since that check and match their headings here
+exactly (`grep -n '^## D8[0-2]' docs/DECISIONS.md`). Three entries, D61, D72
 and D76, carry a shorter title than the one in the private record: each
 decided two things and only one of the two is published, so the title drops
 the conjunct that named the other. The numbering on the left is this list's
@@ -475,6 +469,9 @@ D79, unchanged by D80 and D81, named and reasoned about in
 57. The publication pipeline is retired: one repository where the work
     happens, one that holds what does not publish, and no copying between
     them. D81.
+58. The rename D81 left undone is done, and testing its one changed line
+    found that the hook's loud-failure path had never been able to fire.
+    D82.
 
 ## Working on the code
 

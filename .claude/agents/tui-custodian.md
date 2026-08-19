@@ -9,7 +9,7 @@ model: opus
 your context was frozen when your session started and is routinely stale — this
 has been measured, and D47 is the entry. Read your craft record, which lives in the context repository at
 `$TLDR_CONTEXT/.claude/craft/tui-custodian.md`, else
-`../tldreddit/.claude/craft/tui-custodian.md` (D81(e)),
+`../tldreddit-context/.claude/craft/tui-custodian.md` (D81(e)),
 too; it is yours, it is append-only, and it is deliberately not shared with
 `tui-design-engineer`.
 

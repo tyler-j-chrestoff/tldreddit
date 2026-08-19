@@ -666,10 +666,11 @@ yet):
   everything else publishes), so the live question for these decisions is no
   longer "does each one clear a per-entry gate" but whether any of them mixes
   in `docs/PRIVATE.md`-class content that needs splitting out before
-  publishing. The public tree is still not touched by this bullet. Re-check
-  the premise rather than trusting this bullet:
-  `grep -rho "D[0-9]\+" /home/tyler/code/tldreddit-public --include=*.go | sort -u`
-  beside the same command over this tree's `cmd/` and `tui/`.
+  publishing. Re-check the premise rather than trusting this bullet:
+  `grep -rho "D[0-9]\+" . --include=*.go | sort -u` over this tree, against
+  `grep -o '^## D[0-9]*' docs/DECISIONS.md` — the difference is the set of
+  entries cited by code that a reader of this repository cannot open. There is
+  no second tree to compare with any more.
 - **The surface draws a control token as ordinary text, and whether it should is
   undecided.** `persona.Escape` neutralises a control marker on the way *out* to
   a model; nothing touches what is drawn. So the qwen3.5 reply that ends
@@ -1152,8 +1153,13 @@ not.
   compare. The general hazard it identified is not closed and is covered by
   D76(h) instead — cite by identifier, not by line number, because the number
   rots whenever anything above it moves. The original item follows.
-  **Nine `file:line` citations in synced files resolved correctly only because
-  the code was byte-identical across the two trees.** A tenth, the one this
+  **CLOSED by D81: nine `file:line` citations in synced files resolved
+  correctly only because the code was byte-identical across the two trees.**
+  There is one tree now and nothing syncs, so the invariant those citations
+  silently depended on is not merely held, it is gone — a citation can no
+  longer be right in one tree and wrong in another. The history is kept
+  because the failure mode generalises: a citation that resolves for a reason
+  other than its own content is a citation waiting to break. A tenth, the one this
   checkpoint fixed (`docs/CLAIMS.md:676`, an `awk 'NR<=N'` line-offset
   settler), answered `## D39` in the private tree and `## D19` in the public
   one on the same command — found because D62's own citation history was the
@@ -1170,10 +1176,11 @@ not.
   way" rule), not anything in the nine citations — which is exactly why a
   gate finding must never be repaired by editing public code directly.
   Enumerated in `docs/CLAIMS.md` and `docs/CODE.md`; not individually listed
-  here because the risk is the class, not the instances. Re-check:
-  `diff -r /home/tyler/code/tldreddit/tui /home/tyler/code/tldreddit-public/tui`
-  and the same for `memory`, `cmd`, `persona` — clean today, and the day one
-  of them is not is the day this item stops being theoretical.
+  here because the risk is the class, not the instances. The re-check this
+  item used to carry was a `diff -r` between the two trees; there is no second
+  tree to diff against, so what replaces it is reading the citation itself:
+  a `file:line` that names a line rather than a symbol goes stale on the next
+  edit above it, one tree or two.
 - **Roughly twenty-one citations to `.claude/craft/*` now point at files the
   public tree does not carry.** D62(h) narrowed D40's craft-record
   publication default to a fresh per-checkpoint sweep rather than
@@ -1189,9 +1196,12 @@ not.
   confidentiality — a dangling reference discloses nothing, it just resolves
   to nothing for a stranger — and accepted the cost rather than editing five
   files to patch it. Recorded here so the next session does not rediscover
-  it as new. Re-check: `grep -rn '\.claude/craft' docs/ .claude/agents/`
-  against a checkout of `/home/tyler/code/tldreddit-public` and count the
-  misses.
+  it as new. **Still live after D81**, which kept `.claude/craft/` in the
+  context repository for the same reason (D81(e)) — the cost is unchanged,
+  only the path is: the records are at `$TLDR_CONTEXT/.claude/craft/`, else
+  `../tldreddit-context/.claude/craft/`. Re-check:
+  `grep -rn '\.claude/craft' docs/ .claude/agents/` over this tree and count
+  how many resolve to nothing in it.
 - **D18 ruled that forum is the base abstraction. There is no forum in the
   code, and there never has been.** Verified:
   `grep -rn "forum" --include='*.go' .` returns **five** hits, not six —

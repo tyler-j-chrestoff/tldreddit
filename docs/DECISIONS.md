@@ -6785,3 +6785,88 @@ than to nothing; and nobody has asked for any of them.
 because it is unsafe to read. A specific request for any of them publishes
 it here, with a correction appended for whatever in it would otherwise read
 false in this tree.
+
+---
+
+## D82 — The rename D81 left undone is done, and testing its one changed line found that the hook's loud-failure path had never been able to fire
+
+**2026-08-19**
+
+**Status:** (a) is executed and verified by command. (b) is measured — a
+defect, found by running the null case rather than the green one. (c) is
+bookkeeping D81 dissolved.
+
+**(a) The directories are renamed, and the names now mean what they say.**
+
+```
+/home/tyler/code/tldreddit           the working repository — this one, public
+/home/tyler/code/tldreddit-context   the context repository — private, no public remote
+```
+
+D81(f) named this as the first action of the next session, because renaming a
+directory a session is running inside destroys its own working directory. It
+was. What moved with it: `CLAUDE.md`'s directory-name warning is deleted, as
+its own text said it would be; `.claude/session-start.sh`'s fallback is
+`../tldreddit-context`; the three seat definitions that name the craft-record
+path point at `../tldreddit-context/.claude/craft/`.
+
+**D81(e) and D81(f) now read wrong, and are not edited.** They say the hook
+falls back to `../tldreddit` and that the working repository sits at
+`/home/tyler/code/tldreddit-public`. Both were true when written and this log
+is append-only, so this entry is the correction: **a reader who finds
+`../tldreddit` in D81 should read it as `../tldreddit-context`.** The stale
+sentence is more dangerous here than usual, because after the rename the old
+path resolves — to the wrong repository — rather than failing.
+
+**(b) MEASURED, and it is the finding worth the entry.** The hook's header
+comment says it "must fail loudly. A continuity hook that silently injects
+nothing is worse than no hook, because the session that needed it will not
+know it was missing. Every failure path below therefore still emits context."
+Running the null case — `TLDR_CONTEXT=/nonexistent sh .claude/session-start.sh`
+— emitted nothing at all and exited 0.
+
+The cause is one line, and `set -eu` is the whole of it:
+
+```sh
+handoff=$([ -n "$handoffs" ] && find "$handoffs" ... | tail -1)
+```
+
+When `$handoffs` is empty the substitution exits non-zero, the assignment
+carries that status, and `set -e` kills the script four lines above the
+`NO HANDOFF FOUND` branch. **The one path the hook exists to report was the
+one path that could not report.** It is now an `if` block, and both cases are
+verified: the null case prints `NO HANDOFF FOUND` naming where it looked, and
+the green case finds session 26 through the new fallback.
+
+Two things generalise. First, the null-hypothesis rule applies to the harness
+itself and not only to product code: this hook has run at the start of every
+session for two weeks and been green every time, and green meant nothing,
+because nobody had shown it could go red. Second, **the failure branch of a
+fail-loud mechanism is the branch that never executes in normal operation**,
+so it is the branch most likely to be dead — writing the loud message is not
+the same as proving it can be printed.
+
+Found only because the rename changed a line in that file and the changed line
+was worth testing. A mechanical edit is a reason to run the thing it edits.
+
+**(c) `docs/DEBT.md`, swept for what D81 dissolved.** Two items closed and one
+relocated, in place, with their history kept:
+
+- The nine `file:line` citations that resolved correctly **only because the
+  code was byte-identical across two trees** — closed. There is one tree and
+  nothing syncs, so a citation can no longer be right in one and wrong in the
+  other. Kept for the generalisation: a citation that resolves for a reason
+  other than its own content is waiting to break.
+- The `cmd/tldr`-verbs publication obligation — its closure was already
+  recorded, but its re-check command still compared two trees. It now
+  compares code citations against this file.
+- The craft-record citations that resolve to nothing — **still live**, since
+  D81(e) kept `.claude/craft/` in the context repository on purpose. Only the
+  path changed.
+
+---
+
+**What would change this.** (b) is a class, not an incident: the next
+fail-loud mechanism this project writes should be checked the same way before
+it is trusted, and if one is found already-dead a second time, the lesson is
+about how they are written rather than about this hook.

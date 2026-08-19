@@ -27,7 +27,7 @@ each instance of you does not pay for the same lesson twice. Append to it when
 you learn something a fresh instance would want on arrival. It is append-only in
 spirit: correct an entry by adding to it, the way `docs/DECISIONS.md` works.
 Craft records live in the context repository, not this one — at
-`$TLDR_CONTEXT/.claude/craft/`, else `../tldreddit/.claude/craft/`. They stay
+`$TLDR_CONTEXT/.claude/craft/`, else `../tldreddit-context/.claude/craft/`. They stay
 there because the competitor material in them is inside verbatim terminal
 captures, and a redacted capture is not a capture (D81(e)).
 
