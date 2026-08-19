@@ -6870,3 +6870,95 @@ relocated, in place, with their history kept:
 fail-loud mechanism this project writes should be checked the same way before
 it is trusted, and if one is found already-dead a second time, the lesson is
 about how they are written rather than about this hook.
+
+---
+
+## D83 — The token budget is a per-turn admission threshold, not a bound on the request, and on every conversation that is not a paste its value changes nothing at all
+
+**2026-08-19**
+
+**Status:** (a) and (b) are measured. (c) is a ruling on what the measurement
+found. (d) is open and is recorded in `docs/DEBT.md` rather than decided here.
+
+D80(d) asked for this and asked for it in the right form: a measurement rather
+than an opinion. `Model.askBudget`'s own doc comment already recorded that real
+turns run 970–2,290 tokens against a budget of 16,384, and D76(f) recorded that
+what `Model.fit` actually caught was a suffix bug rather than an overflow. The
+question was whether `fit` is budget enforcement or turn-selection correctness.
+**It is turn selection**, and the measurement is sharper than the question.
+
+**(a) MEASURED: on real shapes the budget's value is inert across a 64x range
+of window.** 200 bits of each shape at 200x120, swept over windows of 4,096,
+8,192, 32,768, 131,072 and 262,144:
+
+```
+real bits off this record   85 turns / 1,838 tokens at every one of the five
+model-length paragraphs     14/1,983 at 4,096; 21/2,923 at all four above it
+a 500-byte paste every 6th   9/1,996 at 4,096; 15/2,821 at all four above it
+a 50 KB paste every 7th      5/1,107 up to 32,768; 6/46,405 above
+```
+
+Real bits produce a byte-identical request at every window this program will
+meet. Halving or doubling `askShare` would change nothing on any ordinary
+conversation. **`Model.budget` is what keeps the request small** — the fold is
+denominated in rows, so a long conversation costs rows and is folded away
+before `fit` ever sees it. The token budget was written as though it were
+holding the line, and it is not; the screen is.
+
+**(b) MEASURED: in the one case that does reach it, there is no bound.** Twenty
+ordinary bits and then a paste as the newest thing said, at
+`persona.DefaultWindow`:
+
+```
+  8 KB newest → 21 turns /   7,914 est. tokens   (fits)
+ 50 KB newest →  1 turn  /  45,671 est. tokens   (window is 32,768)
+168 KB newest →  1 turn  / 152,599 est. tokens   (4.6x the window)
+```
+
+Two things fall out of one line of code. `fit` sends the newest turn whatever
+it costs and charges its cost to the same running total as every other turn, so
+**an oversized newest turn is a floor under all the history behind it** — the
+exact shape D76(f) removed for every other position, still present for this one
+and nowhere written down. And the request goes past `num_ctx`, at which point
+ollama drops the oldest turns and answers anyway. That is **D75(a), the failure
+the budget exists to prevent, arrived at through the budget's own documented
+rule.**
+
+**(c) The floor is kept, and the reason is what happens next rather than what
+is tidy.** Not charging the newest turn would send the history behind it into a
+request that is already past the window — where the server drops oldest-first,
+which is that same history. It would not put the history in front of the model,
+it would put it in front of the truncator. The person still has it on their own
+screen, and `standingInstruction`'s second paragraph is what the model is told
+about the gap. What changes is that this is now stated in `fit`'s doc and
+pinned by `TestAnOversizedNewestTurnLeavesNothingForTheHistoryBehindIt`, which
+was falsified before it was trusted: removing the newest turn's charge makes it
+report 21 turns where it wants one.
+
+`Model.askBudget`'s opening line said it was "how many tokens of this
+conversation this surface will put in front of the model." Measured, it puts
+152,599 in front of a 32,768-token window. The line now says what the number
+is — the price above which a turn is not admitted — and the paragraphs beneath
+it that were written believing the other thing are corrected in place rather
+than left to be read as current.
+
+**(d) The silent overrun is open, and it is an interface question.** Everything
+arithmetic is decided and right. What is undecided is what the surface *says*
+to a person whose paste will not fit, which today is nothing. It belongs to the
+seat that owns what the person sees, and is in `docs/DEBT.md`.
+
+**The general lesson, and it is the second one this session.** Both of this
+session's findings are the same shape: a mechanism that had been green for
+weeks, whose green meant nothing because the case it guards had never been run.
+The hook's loud-failure branch could not print; the token budget could not
+bind. **A guard is not tested by the traffic it lets through.**
+
+---
+
+**What would change this.** (a) reverses the day the fold stops being the thing
+that keeps requests small — a surface that sends the store rather than the view,
+or a window small enough that ordinary paragraphs reach it. Either would make
+`askShare` load-bearing again, and the sweep is cheap to re-run. (c) reverses if
+a person ever wants the conversation sent alongside an oversized paste more than
+they want the paste whole; nothing has asked for that, and D80's rule applies —
+that would be a property to state, not a technique to prefer.

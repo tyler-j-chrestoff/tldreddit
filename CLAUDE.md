@@ -355,8 +355,8 @@ there. One line per decision below, title only, verified against that file's
 own headings on 2026-08-16 — D61's line carried backticks around `Prev` that
 the actual heading does not have, and is fixed above; every other entry
 through D66, including D47's line fixed at the 2026-08-14 check, matched.
-D78 through D82 are new since that check and match their headings here
-exactly (`grep -n '^## D8[0-2]' docs/DECISIONS.md`). Three entries, D61, D72
+D78 through D83 are new since that check and match their headings here
+exactly (`grep -n '^## D8[0-3]' docs/DECISIONS.md`). Three entries, D61, D72
 and D76, carry a shorter title than the one in the private record: each
 decided two things and only one of the two is published, so the title drops
 the conjunct that named the other. The numbering on the left is this list's
@@ -472,6 +472,9 @@ D79, unchanged by D80 and D81, named and reasoned about in
 58. The rename D81 left undone is done, and testing its one changed line
     found that the hook's loud-failure path had never been able to fire.
     D82.
+59. The token budget is a per-turn admission threshold, not a bound on the
+    request, and on every conversation that is not a paste its value changes
+    nothing at all. D83.
 
 ## Working on the code
 

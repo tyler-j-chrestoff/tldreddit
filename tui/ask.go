@@ -233,8 +233,14 @@ const (
 	askShare = 2
 )
 
-// askBudget is how many tokens of this conversation this surface will put in
-// front of the model: half of the window the persona asked for.
+// askBudget is half of the window the persona asked for, and it is the price
+// above which a turn is not admitted to the request.
+//
+// It reads as a bound on the request and it is not one, which D83 measured and
+// this line now says first because everything below was written believing the
+// other thing. [Model.fit] sends the newest turn whatever it costs, so the
+// request can exceed this number, and exceed the window with it. What this
+// bounds is every turn except that one.
 //
 // D18(e) asks for two budgets — a screen in rows, a model in tokens — and this
 // is the second one, arriving three sessions after the first. What stood here
@@ -303,6 +309,25 @@ const (
 //
 // So this is a guard on the paste rather than a bound on the conversation, and
 // saying it the other way round would overstate what it does.
+//
+// # And on real shapes the number itself does not do anything (D83)
+//
+// Swept across a 64x range of window — 4,096, 8,192, 32,768, 131,072, 262,144 —
+// against 200 bits of each shape above at 200x120. Real bits off this record
+// send **85 turns and an estimated 1,838 tokens at every one of the five**,
+// byte for byte the same request. Paragraphs and a 500-byte paste differ only
+// at 4,096 and are identical from 8,192 up. Nothing but a paste larger than the
+// budget changes what is sent, at any window this program will meet.
+//
+// That is [Model.budget] doing the work: the fold is denominated in rows, so a
+// long conversation costs rows and is folded away before this ever sees it. The
+// request stays small because the *screen* is small, and this number is not
+// what holds it there.
+//
+// The consequence for anyone changing [askShare]: on every ordinary
+// conversation, halving or doubling it sends exactly the same request. The
+// fraction is only visible on the paste, which is the one case worth arguing
+// about and not the case the argument above is written in terms of.
 func (m Model) askBudget() int {
 	// Zero is a persona that did not say, and persona resolves it to
 	// DefaultWindow on the wire. It has to be resolved the same way here — a
@@ -377,6 +402,35 @@ func (m Model) askBudget() int {
 // different one, and the answer to it would go into the record as an answer to
 // this one. Overrunning is the better failure of the two and it is the
 // server's to report.
+//
+// # An oversized newest turn *is* a floor under everything behind it, and that
+// is now a decision rather than an oversight (D83)
+//
+// The paragraph above about stepping over says one unaffordable turn is not a
+// floor under the affordable ones behind it. That is true of every turn except
+// the newest, and the exception is not a special case in the code — the newest
+// turn's cost goes into `spent` like any other, so a turn that alone exceeds
+// the budget leaves nothing for anything older and the loop skips all of it.
+// Measured at [persona.DefaultWindow], twenty ordinary bits and then a paste
+// as the newest thing said: 8 KB sends 21 turns; 50 KB sends **one**, and the
+// request is an estimated 45,671 tokens against a window of 32,768; 168 KB
+// sends one at 152,599, 4.6x the window.
+//
+// It is left as it is, and the reason is what happens next rather than what is
+// tidy. The request is already past the window in that case, so ollama will
+// drop turns to make it fit — oldest first, which is exactly the history that
+// not charging the newest turn would have added. Sending it would not put that
+// history in front of the model; it would put it in front of the truncator.
+// The person still has it on their own screen, and [standingInstruction]'s
+// second paragraph is what the model is told about the gap.
+//
+// **What this does mean is that the budget does not prevent the failure it was
+// written to prevent, in the one case that reaches it.** A paste large enough
+// to matter overruns num_ctx whether or not this function is here. That is
+// D75(a) again, arrived at through this function's own documented rule, and it
+// is recorded in `docs/DEBT.md` rather than fixed here, because fixing it means
+// deciding what the surface *says* to a person whose paste will not fit — and
+// that is a question about the interface, not about arithmetic.
 func (m Model) fit(turns []persona.Turn) []persona.Turn {
 	if len(turns) == 0 {
 		return turns

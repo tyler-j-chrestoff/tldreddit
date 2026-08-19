@@ -1,5 +1,29 @@
 # Open debt
 
+- **A paste large enough to matter still overruns `num_ctx` in silence, and the
+  budget does not stop it.** D83 measured `Model.fit` against the shapes
+  `Model.askBudget`'s own comment names. On everything but a paste the budget is
+  inert — 200 real bits at 200x120 send the same 85 turns and an estimated 1,838
+  tokens at windows of 4,096, 8,192, 32,768, 131,072 and 262,144 alike — and on
+  a paste it fails the way that matters: twenty ordinary bits then a 50 KB paste
+  as the newest thing said sends one turn at an estimated 45,671 tokens against
+  a window of 32,768, and a 168 KB paste sends one at 152,599. The newest turn
+  is sent whatever it costs (`Model.fit`, and it is the right rule — a request
+  with the question missing is a different request), so the request goes past
+  num_ctx and ollama drops the oldest turns without saying so. **That is D75(a),
+  the failure the whole budget was built to prevent, reached through the
+  budget's own documented rule.**
+
+  **It is open because the fix is an interface question rather than an
+  arithmetic one.** Everything arithmetic here is already decided and already
+  right; what is undecided is what the surface *says* to a person whose paste
+  will not fit — nothing today. The candidates are a scar-shaped note in the
+  view before the request goes, refusing the ask with the size in it, or
+  `persona.Answer.Truncated`'s treatment applied to the prompt side. Choosing
+  needs the seat that owns what the person sees, not the one that owns `fit`.
+  Re-check: `TestAnOversizedNewestTurnLeavesNothingForTheHistoryBehindIt`
+  asserts the overrun directly, so this item is live for exactly as long as that
+  test passes.
 - **A fold can still open the view on an answer whose question it took, once a
   message can be half a screen — and closing it needs a ruling in `memory/`.**
   The budget counts rows now (`Model.rows`), which is what the unit mismatch

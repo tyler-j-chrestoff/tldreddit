@@ -1201,6 +1201,56 @@ func TestTheNewestTurnIsSentEvenWhenItAloneOverrunsTheBudget(t *testing.T) {
 	}
 }
 
+// An oversized *newest* turn does take the affordable ones behind it, and that
+// is the decision rather than the bug.
+//
+// [TestATurnTooBigToSendDoesNotTakeTheOnesBehindItWithIt] below pins the
+// opposite for every other position, and the two are not in tension: the newest
+// turn is sent whatever it costs, its cost is charged to the same running total
+// as everything else, and a turn that alone exceeds the budget therefore leaves
+// nothing for anything older. D83 measured what that looks like — twenty
+// ordinary bits and a 50 KB paste as the newest thing said sends exactly one
+// turn — and ruled it kept, because the request is past num_ctx at that point
+// and the history this would add is the first thing the server drops.
+//
+// It is a test rather than a comment because the behaviour is now load-bearing
+// in two directions: a future change that stops charging the newest turn would
+// silently start sending history into a request that cannot hold it, and this
+// is what says so. The oversized turn itself must still be present — it is the
+// newest, and a request with the question missing is a different request.
+func TestAnOversizedNewestTurnLeavesNothingForTheHistoryBehindIt(t *testing.T) {
+	m := sized(200, 120)
+	for i := range 20 {
+		m.say(localHandle, lines[i%len(lines)])
+	}
+	paste := strings.Repeat("0123456789,2026-08-18T00:00:00Z,1,2,3\n", 50*1024/38)
+	m.say(localHandle, paste)
+
+	turns := m.turns()
+	if len(turns) != 1 {
+		t.Fatalf("an oversized newest turn sent %d turns, want exactly itself — "+
+			"if this is more than one, the newest turn is no longer charged to the budget",
+			len(turns))
+	}
+	if !strings.Contains(turns[0].Content, "0123456789,2026-08-18") {
+		t.Errorf("the one turn sent is not the paste: %.60q", turns[0].Content)
+	}
+
+	// And the half of it that is not tidy: the request this produces is past the
+	// window, not merely past the budget. Asserted so that a future estimator or
+	// a future budget cannot quietly make this comment false while the count
+	// above still passes.
+	spent := promptFloor + tokensIn(m.persona.System)
+	for _, turn := range turns {
+		spent += turnFraming + tokensIn(turn.Content)
+	}
+	if spent <= persona.DefaultWindow {
+		t.Errorf("the request is an estimated %d tokens against a window of %d; "+
+			"this fixture no longer overruns it, so it is not the case D83 measured",
+			spent, persona.DefaultWindow)
+	}
+}
+
 // One turn too big to send does not take the affordable ones behind it.
 //
 // This is the bug `tui-custodian` found on its first pass, and it is worth
