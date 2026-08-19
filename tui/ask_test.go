@@ -3,7 +3,9 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -238,7 +240,6 @@ func TestASaveThatFailedNeverSaysNothingWasRecorded(t *testing.T) {
 		problem: "/state/tldr/record: no space left on device",
 		fix:     unsaved.trouble.fix,
 	}
-	other.trouble.unsaved = false
 
 	head := func(m Model, w int) string {
 		m.width = w
@@ -1386,5 +1387,497 @@ func TestTheTokenEstimateChargesDenseMaterialMoreThanProse(t *testing.T) {
 		} else {
 			prev = got
 		}
+	}
+}
+
+// A paste, built rather than pasted, so the fixture is a deterministic function
+// of a literal. [tokensIn]'s own comment records what happens when it is not:
+// the estimate and the measurement stop being of the same bytes and both sides
+// still look like a result.
+//
+// CSV of timestamps and integers because that is the densest material measured —
+// about one token a byte — so a fixture that reaches a 32,768-token window is
+// the size of a file somebody would actually paste rather than a synthetic wall
+// of text.
+func costing(want int) string {
+	const unit = "2026-08-19T04:11:07Z,4192,ok,write,/state/tldr/record\n"
+	n := max(want/max(tokensIn(unit), 1), 1)
+	for n > 1 && turnCost(strings.Repeat(unit, n)) > want {
+		n--
+	}
+	return strings.Repeat(unit, n)
+}
+
+// An ask the persona's window cannot hold is recorded and not sent, and the
+// screen says which of those two happened.
+//
+// The alternative is what this program did until now: send it, let ollama drop
+// from the front until what is left fits, and write the answer into an
+// append-only record under the persona's handle with nothing anywhere saying it
+// answered about part of a message. That is a bad answer nobody can afterwards
+// tell from a good one, which is the failure the whole record exists to prevent.
+//
+// The words are the person's and the record keeps them, which is why the
+// header can say what it says. Nothing is lost here; only the asking stopped.
+func TestAnAskTooLargeForTheWindowIsRecordedAndNotAsked(t *testing.T) {
+	m := sized(100, 30)
+	m.ollama = offline()
+
+	// Set first and priced afterwards, because the composer has a limit of its
+	// own ([draftLimit]) and the number that matters is what would be sent
+	// rather than what was offered. Pricing the fixture instead measures a
+	// string this program would never have.
+	m.composer.SetValue(costing(m.askWindow() * 2))
+	paste := m.composer.Value()
+	cost := m.baseCost() + turnCost(paste)
+	if cost <= m.askWindow() {
+		t.Fatalf("the largest draft this composer can hold costs an estimated %d tokens against a window of %d, so nothing typed here can reach the case",
+			cost, m.askWindow())
+	}
+
+	cmd := m.send()
+
+	if cmd != nil {
+		t.Error("send returned a command, so a request went out that the window cannot hold")
+	}
+	if m.waiting.live {
+		t.Error("the pending line is up for a request that was never sent")
+	}
+	if got := len(m.shown); got != 1 {
+		t.Fatalf("view holds %d bits, want 1 — the words are the person's and the record keeps them", got)
+	}
+	if m.trouble.kind != troubleUnasked {
+		t.Fatalf("trouble = %+v, want the unasked notice — nothing else on this screen says the model was not asked", m.trouble)
+	}
+
+	// And the numbers it decided on are on the screen, so a person who disagrees
+	// with the decision can see what it was made from.
+	flat := strings.Join(strings.Fields(ansi.Strip(m.troubleBlock())), " ")
+	for _, want := range []string{"not asked", thousands(cost), thousands(m.askWindow())} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("the block does not carry %q:\n%s", want, flat)
+		}
+	}
+}
+
+// The threshold is the window and not [Model.askBudget], and this is the only
+// check that can tell those apart.
+//
+// Between the budget and the window the request is degraded and not corrupted:
+// one turn goes on its own, the model reads all of it, and what is missing is
+// the conversation around it — which the person still has on screen. Refusing
+// there would be this surface declining to do something it can do, and every
+// other send test in this file uses a sentence, which sits under both numbers
+// and so cannot notice.
+func TestAnAskTheWindowCanStillHoldIsAsked(t *testing.T) {
+	m := sized(100, 30)
+	m.ollama = offline()
+
+	m.composer.SetValue(costing(m.askWindow() - m.baseCost() - turnFraming))
+	big := m.composer.Value()
+	cost := m.baseCost() + turnCost(big)
+	switch {
+	case cost > m.askWindow():
+		t.Fatalf("the fixture costs an estimated %d against a window of %d, so it is the other case", cost, m.askWindow())
+	case cost <= m.askBudget():
+		t.Fatalf("the fixture costs an estimated %d against a budget of %d, so this test cannot tell the two thresholds apart",
+			cost, m.askBudget())
+	}
+
+	if cmd := m.send(); cmd == nil {
+		t.Errorf("an ask of an estimated %d tokens was refused by a window of %d", cost, m.askWindow())
+	}
+	if m.trouble.up() {
+		t.Errorf("trouble = %+v, want nothing — the window can hold this one", m.trouble)
+	}
+}
+
+// The third header never borrows the other two claims, at any width.
+//
+// Each of the three is false of the other two, and this is the one that is
+// furthest along: the record has it and the file has it, so a header saying
+// either was lost is a screen telling a person their words are gone while the
+// words sit directly above the sentence saying so. [TestASaveThatFailedNeverSaysNothingWasRecorded]
+// is the same check for the pair that existed before this one did.
+//
+// The floor is measured rather than derived, the same way that test's is. Below
+// nine columns the header is the terminal-side cut of "not asked" — "not ask…"
+// at eight, "not…" at four, which is the shared prefix of all three claims and
+// so a claim about none of them, with the ellipsis saying the cutting was done
+// here. Nine is where the sentence is whole.
+func TestTheUnaskedNoticeNeverSaysAnythingWasLost(t *testing.T) {
+	const floor = 9
+
+	m := sized(100, 30)
+	m.trouble = m.unasked("a paste")
+
+	for w := 1; w <= 120; w++ {
+		m.width = w
+		drawn := strings.Join(strings.Fields(ansi.Strip(m.troubleBlock())), " ")
+		for _, lie := range []string{"nothing was recorded", "not recorded", "not on disk"} {
+			if strings.Contains(drawn, lie) {
+				t.Fatalf("the unasked block says %q at width %d, and the message is on the screen above it:\n%s",
+					lie, w, drawn)
+			}
+		}
+		switch said := strings.Contains(drawn, "not asked"); {
+		case w >= floor && !said:
+			t.Fatalf("the unasked block does not say what did not happen at width %d:\n%s", w, drawn)
+		case w < floor && said:
+			t.Fatalf("the header is whole at width %d, below the measured floor of %d — the floor moved and this comment is now wrong",
+				w, floor)
+		}
+	}
+}
+
+// The refusal is on the screen before enter is pressed, not only after.
+//
+// A person pasting a file sees three rows of it in the composer, so the one
+// thing they cannot judge for themselves is how big the thing they are holding
+// is. The footer is where this surface says what a key will do, and it already
+// stops offering "enter send" while a reply is in flight for exactly this
+// reason: a row naming a key that will not do what it says is the screen lying
+// about itself.
+func TestTheFooterSaysEnterWillNotAskBeforeItIsPressed(t *testing.T) {
+	m := sized(100, 30)
+	if got := ansi.Strip(m.footer()); !strings.Contains(got, "enter send") {
+		t.Fatalf("the footer does not offer enter with an empty composer, so this test measures nothing:\n%s", got)
+	}
+
+	m.composer.SetValue(costing(m.askWindow() * 2))
+	got := ansi.Strip(m.footer())
+	if strings.Contains(got, "enter send") {
+		t.Errorf("the footer still offers \"enter send\" for a draft the window cannot hold:\n%s", got)
+	}
+	if !strings.Contains(got, "not asked") {
+		t.Errorf("the footer does not say the model will not be asked:\n%s", got)
+	}
+}
+
+// A paste the composer cannot hold is not taken at all, and the draft is exactly
+// what it was.
+//
+// The textarea's own rule is the other one, and it is what shipped for as long
+// as [Load] set a character limit nobody had argued for: a 216,000-rune paste
+// left a 4,000-rune draft, silently, and that draft is what becomes a bit. A
+// record whose claim is that it can say what produced what cannot hold a
+// document that is quietly not the document — which is the same forgery
+// [Model.fit] refuses against a turn, one layer earlier and somewhere permanent.
+func TestADraftTooLargeToPasteIsRefusedWhole(t *testing.T) {
+	m := sized(100, 30)
+	m.composer.SetValue("here is the log, ")
+	was := m.composer.Value()
+
+	paste := strings.Repeat("2026-08-19T04:11:07Z,4192,ok,write,/state/tldr/record\n", 4000)
+	if len([]rune(paste)) <= draftLimit {
+		t.Fatalf("the fixture is %d runes against a limit of %d, so it does not reach the case",
+			len([]rune(paste)), draftLimit)
+	}
+
+	next, _ := m.Update(tea.PasteMsg{Content: paste})
+	m = next.(Model)
+
+	if got := m.composer.Value(); got != was {
+		t.Errorf("the composer holds %d runes after a refused paste, want the %d it had:\n%.120q",
+			len([]rune(got)), len([]rune(was)), got)
+	}
+	if m.trouble.kind != troubleUnpasted {
+		t.Fatalf("trouble = %+v, want the unpasted notice — a composer that looks unchanged is exactly what a cut paste also looks like", m.trouble)
+	}
+	flat := strings.Join(strings.Fields(ansi.Strip(m.troubleBlock())), " ")
+	for _, want := range []string{"nothing was added", thousands(len([]rune(paste)))} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("the block does not carry %q:\n%s", want, flat)
+		}
+	}
+}
+
+// And a paste the composer can hold lands whole, which is the half that says
+// the refusal above is a decision rather than a wall.
+func TestAPasteTheComposerCanHoldLandsWhole(t *testing.T) {
+	m := sized(100, 30)
+
+	paste := strings.Repeat("2026-08-19T04:11:07Z,4192,ok,write,/state/tldr/record\n", 100)
+	if len([]rune(paste)) >= draftLimit {
+		t.Fatalf("the fixture is %d runes against a limit of %d, so it is the other case", len([]rune(paste)), draftLimit)
+	}
+
+	next, _ := m.Update(tea.PasteMsg{Content: paste})
+	m = next.(Model)
+
+	if got := len([]rune(m.composer.Value())); got != len([]rune(paste)) {
+		t.Errorf("the composer holds %d runes of a %d-rune paste", got, len([]rune(paste)))
+	}
+	if m.trouble.up() {
+		t.Errorf("trouble = %+v, want nothing — the composer took all of it", m.trouble)
+	}
+}
+
+// A paste with more lines than the composer holds is refused too, and this is
+// the check that says the refusal is about the paste rather than about one of
+// its two limits.
+//
+// The composer has a second ceiling nobody chose: bubbles stops a paste at
+// 10,000 rows (textarea.maxLines), *after* the character limit and independently
+// of it, so setting CharLimit high does not move it and setting it to zero does
+// not lift it. Measured before this test existed: a 60,000-rune paste of short
+// lines left 39,999 runes in the composer, under [draftLimit], with nothing
+// raised — so the guard that exists for the character ceiling passed a draft
+// that was two thirds of somebody's file, and that draft is what becomes a bit.
+// One silent cut is the same as the other; the record cannot hold either.
+func TestAPasteWithMoreLinesThanTheComposerHoldsIsRefusedWhole(t *testing.T) {
+	m := sized(100, 30)
+	m.composer.SetValue("here is the log, ")
+	was := m.composer.Value()
+
+	paste := strings.Repeat("abc\n", 15000)
+	if len([]rune(paste)) >= draftLimit {
+		t.Fatalf("the fixture is %d runes against a limit of %d, so the character ceiling would catch it and this test would measure that instead",
+			len([]rune(paste)), draftLimit)
+	}
+
+	next, _ := m.Update(tea.PasteMsg{Content: paste})
+	m = next.(Model)
+
+	if got := m.composer.Value(); got != was {
+		t.Errorf("the composer holds %d runes and %d lines after a refused paste, want the %d runes it had",
+			len([]rune(got)), m.composer.LineCount(), len([]rune(was)))
+	}
+	if m.trouble.kind != troubleUnpasted {
+		t.Fatalf("trouble = %+v, want the unpasted notice — a paste cut at ten thousand lines looks exactly like one that fit", m.trouble)
+	}
+}
+
+// Whatever the refusal says, its two numbers are in one unit and the bigger one
+// is the one that did not fit.
+//
+// They were not. offered was a rune count and room came off the composer's own
+// Length, which is display width summed over rows — so a 40,000-rune paste of
+// CJK was refused with "that is 40,000 characters and there is room for 65,536
+// here", two numbers whose own comparison says it should have fit. A threshold
+// the screen states wrongly is worse than one it does not state, because the
+// person checks it and the screen loses the argument.
+func TestTheRefusalsTwoNumbersAreInOneUnit(t *testing.T) {
+	digits := regexp.MustCompile(`[0-9][0-9,]*`)
+
+	for _, c := range []struct {
+		what  string
+		paste string
+	}{
+		{"plain", strings.Repeat("a", draftLimit+1)},
+		{"wide", strings.Repeat("日", draftLimit)},
+		{"tabbed", strings.Repeat("\tx", draftLimit/2)},
+		{"many lines", strings.Repeat("abc\n", 15000)},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			m := sized(100, 30)
+			next, _ := m.Update(tea.PasteMsg{Content: c.paste})
+			m = next.(Model)
+
+			if m.trouble.kind != troubleUnpasted {
+				t.Fatalf("trouble = %+v, want the unpasted notice", m.trouble)
+			}
+			said := digits.FindAllString(m.trouble.problem, -1)
+			if len(said) != 2 {
+				t.Fatalf("the notice prints %d numbers, want the two it decided on: %q", len(said), m.trouble.problem)
+			}
+			needs, room := unthousands(t, said[0]), unthousands(t, said[1])
+			if needs <= room {
+				t.Errorf("the notice says it needs %d and there is %d, which says it fits: %q", needs, room, m.trouble.problem)
+			}
+		})
+	}
+}
+
+func unthousands(t *testing.T, s string) int {
+	t.Helper()
+	n, err := strconv.Atoi(strings.ReplaceAll(s, ",", ""))
+	if err != nil {
+		t.Fatalf("the notice printed %q, which is not a number this test can read back", s)
+	}
+	return n
+}
+
+// "The draft is exactly what it was before the key" includes where the caret was
+// in it.
+//
+// The refusal restores the draft by setting the composer's value, which empties
+// it and types it back — so the caret lands at the end of a draft somebody was
+// editing the middle of. That is a small thing done silently, in the one notice
+// whose whole claim is that nothing moved.
+func TestARefusedPasteLeavesTheCaretWhereItWas(t *testing.T) {
+	m := sized(100, 30)
+	m.composer.SetValue("one\ntwo\nthree")
+	m.composer.CursorUp()
+	m.composer.SetCursorColumn(2)
+	row, col := m.composer.Line(), m.composer.Column()
+	if row != 1 || col != 2 {
+		t.Fatalf("the caret starts at row %d column %d, so this test is not measuring what it says", row, col)
+	}
+
+	next, _ := m.Update(tea.PasteMsg{Content: strings.Repeat("a", draftLimit+1)})
+	m = next.(Model)
+
+	if m.trouble.kind != troubleUnpasted {
+		t.Fatalf("trouble = %+v, want the unpasted notice", m.trouble)
+	}
+	if got, want := m.composer.Value(), "one\ntwo\nthree"; got != want {
+		t.Fatalf("the draft is %q, want %q", got, want)
+	}
+	if r, c := m.composer.Line(), m.composer.Column(); r != row || c != col {
+		t.Errorf("the caret is at row %d column %d, want row %d column %d — the notice says nothing moved", r, c, row, col)
+	}
+}
+
+// A key that does not fit is refused out loud too, because a paste does not
+// always arrive as a paste.
+//
+// Bracketed paste is a terminal feature and a great deal of pasting happens
+// without it — tmux send-keys, an ssh session that lost it, a terminal that
+// never had it. That text arrives as key presses, one at a time, and the
+// composer's character limit drops each one past the ceiling and says nothing.
+// The end of that is a draft cut at exactly the limit and a bit made from it,
+// which is the same silent cut the paste guard exists to refuse, spelled one key
+// at a time.
+func TestAKeyTheComposerCannotHoldIsSaidRatherThanDropped(t *testing.T) {
+	m := sized(100, 30)
+	m.composer.SetValue(strings.Repeat("a", draftLimit))
+	was := m.composer.Value()
+
+	next, _ := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	m = next.(Model)
+
+	if got := m.composer.Value(); got != was {
+		t.Errorf("the composer holds %d runes, want the %d it was full at", len([]rune(got)), len([]rune(was)))
+	}
+	if !m.trouble.up() {
+		t.Fatal("the key went nowhere and the screen says nothing about it")
+	}
+	if m.trouble.kind != troubleUnpasted {
+		t.Errorf("trouble = %+v, want the composer's own notice", m.trouble)
+	}
+
+	// And it names the ceiling rather than a pair of numbers, which is also what
+	// says this went down the path that does not try first: a composer with no
+	// room cannot measure what would have fit, and typing a file into one costs a
+	// copy of the whole draft per key if it tries anyway.
+	flat := strings.Join(strings.Fields(ansi.Strip(m.troubleBlock())), " ")
+	if !strings.Contains(flat, "full at "+thousands(draftLimit)) {
+		t.Errorf("the block does not say where the ceiling is:\n%s", flat)
+	}
+}
+
+// And a key the composer can hold still lands, which is what says the check
+// above is a decision and not a wall.
+func TestAKeyTheComposerCanHoldStillLands(t *testing.T) {
+	m := sized(100, 30)
+	m.composer.SetValue("say")
+
+	next, _ := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	m = next.(Model)
+
+	if got, want := m.composer.Value(), "sayx"; got != want {
+		t.Errorf("the composer holds %q, want %q", got, want)
+	}
+	if m.trouble.up() {
+		t.Errorf("trouble = %+v, want nothing — there was room", m.trouble)
+	}
+}
+
+// The footer still names esc while an oversize draft holds a notice up.
+//
+// The two states can be up at once — paste a file into a draft that is already
+// past the window and the refusal's notice stands over a draft that will not be
+// asked — and the antecedent's ladder was written as though only one of them
+// could be, so the one key that clears the block went unnamed for as long as the
+// draft stayed big.
+func TestTheFooterNamesEscWhileAnOversizeDraftHoldsANotice(t *testing.T) {
+	m := sized(100, 30)
+	m.composer.SetValue(costing(m.askWindow() * 2))
+	m.trouble = saveFailed(errors.New("/state/tldr/record: no space left on device"))
+
+	got := ansi.Strip(m.footer())
+	if !strings.Contains(got, "not asked") {
+		t.Errorf("the footer stopped saying the model will not be asked:\n%s", got)
+	}
+	if !strings.Contains(got, "esc") {
+		t.Errorf("a notice is up and the footer does not name the key that clears it:\n%s", got)
+	}
+}
+
+// A carriage return costs a row here, the same as a newline, and the refusal's
+// arithmetic has to charge for it the way the composer does.
+//
+// bubbles sanitizes a paste before storing it and maps '\r' and '\n' alike onto
+// a newline of its own — so a file with CRLF endings arrives double-spaced, and
+// a count of '\n' alone is half of what such a paste actually costs. This is the
+// pin on that: it is a fact about a dependency, so it belongs to a check rather
+// than to a comment.
+func TestACarriageReturnCostsARowTheWayANewlineDoes(t *testing.T) {
+	m := sized(100, 30)
+	before := m.composer.LineCount()
+
+	paste := "one\r\ntwo\r\nthree"
+	next, _ := m.Update(tea.PasteMsg{Content: paste})
+	m = next.(Model)
+
+	got := m.composer.LineCount() - before
+	if want := linesIn(paste); got != want {
+		t.Errorf("the composer gained %d rows from %q and linesIn says %d — the refusal would be measured against the wrong number",
+			got, paste, want)
+	}
+}
+
+// What a draft costs to hold, which is the second half of [draftLimit]'s
+// argument and the half that used to be a table of numbers with no way back to
+// them.
+//
+// Two costs and they are separate, because [Model.Update] does not draw: typing
+// one character into a full composer costs a pass through Update and then a
+// frame, and the sum is what a person feels between the key and the screen. The
+// sizes are a ladder around the limit rather than a sweep, because the shape
+// being checked is that the cost is linear — a cliff between two of these is the
+// finding, not a fifth digit on any one of them.
+//
+// It is a benchmark rather than a test because there is no number here that
+// should redden a gate: the machine sets the numbers, and the same code on a
+// slower one is slower and no more wrong. Run it, read them, and correct
+// [draftLimit] if the shape has changed.
+func BenchmarkTheComposerUnderAFullDraft(b *testing.B) {
+	const row = "2026-08-19T04:11:07Z,4192,ok,write,/state/tldr/record\n"
+
+	for _, size := range []int{4000, 20000, 60000, draftLimit, 200000, 400000} {
+		draft := strings.Repeat(row, size/len(row))
+
+		// The limit comes off to build the fixture and goes straight back on, so
+		// what is timed is the path the program actually takes at that draft
+		// size. Above the limit that path is the refusal rather than an insert,
+		// which is the honest thing to measure there: it is what a key press
+		// costs when the composer is that full. The sizes go deliberately past
+		// the ceiling because the shape being checked is the curve, and points
+		// on one side of it do not show one.
+		full := func() Model {
+			m := sized(100, 30)
+			m.composer.CharLimit = 0
+			m.composer.SetValue(draft)
+			m.composer.CharLimit = draftLimit
+			return m
+		}
+
+		b.Run(fmt.Sprintf("frame/%d", size), func(b *testing.B) {
+			m := full()
+			b.ResetTimer()
+			for b.Loop() {
+				_ = m.View()
+			}
+		})
+		b.Run(fmt.Sprintf("keystroke/%d", size), func(b *testing.B) {
+			m := full()
+			b.ResetTimer()
+			for b.Loop() {
+				next, _ := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+				m = next.(Model)
+			}
+		})
 	}
 }

@@ -99,7 +99,7 @@ func (m Model) saved(was checkpoint) Model {
 		m.trouble = saveFailed(err)
 		m.sync()
 
-	case m.trouble.unsaved:
+	case m.trouble.kind == troubleUnsaved:
 		// A save that got through makes the standing notice's own claim false,
 		// and a false claim about what is on disk is worse here than no claim at
 		// all. Cleared rather than left for esc: nobody should have to dismiss a
@@ -122,7 +122,7 @@ func (m Model) saved(was checkpoint) Model {
 // through.
 func saveFailed(err error) notice {
 	return notice{
-		unsaved: true,
+		kind:    troubleUnsaved,
 		problem: err.Error(),
 		fix: "nothing said here is lost. Fix the above and the next change writes all of it." +
 			" Quit before that and the file keeps only what already reached it.",

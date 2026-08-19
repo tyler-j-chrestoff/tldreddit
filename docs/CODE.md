@@ -809,6 +809,30 @@ config and isn't tracked, so a fresh clone needs
   has no scar in it and could not see this at all. It is **not versioned** — `persona.Persona.System` is
   deliberately outside `Handle()`, so no bit in the store distinguishes
   what was said under the old instruction from the new.
+  **Four things a person is told about a wall, and the four headers that name
+  which layer it is at.** `noticeKind` replaced `notice.unsaved` when a third
+  and fourth case arrived: `troubleUnrecorded` (the request failed and is the
+  zero value, because `explain` builds one from an error without naming a
+  kind), `troubleUnsaved` (the record has it, the file does not),
+  `troubleUnasked` (both have it, the model was not shown it) and
+  `troubleUnpasted` (nothing happened at all and the draft is untouched). Each
+  header is false of the other three, which is why they cannot be shared.
+  `Model.tooLargeToAsk` is the ask that is recorded and not sent, thresholded on
+  the persona's whole window (`Model.askWindow`) rather than on
+  `Model.askBudget`, and `Model.baseCost`/`turnCost` are the request's pricing
+  taken out of `Model.fit` so that the decision to send and the selection of
+  what to send cannot drift apart. `draftLimit` replaced an unexamined
+  `CharLimit = 4000`, which had been silently cutting a 216,000-rune paste down
+  to 4,000 runes before it became a bit, and the three refusals a composer can
+  make — `unpasted` by width, `unpastedRows` by the row ceiling `bubbles`
+  enforces on its own, `unfilled` when there is no room left at all — live here
+  beside it. **The gate that raises them is in `tui/tui.go`, not this file:**
+  `insertion` in `Model.update` takes a paste and a text-bearing key press
+  alike, `linesIn` charges a carriage return the row the composer charges it,
+  and `Model.recompose` puts the caret back where it was after a refusal sets
+  the draft back. `docs/DEBT.md`'s first item carries the measurements and the
+  two residual costs, one of which is that filling the composer a key at a time
+  is quadratic.
 - `tui/ask_test.go` — the request/reply cycle's tests, driven through
   `Update` and `Model.send`/`turns`/`recordReply` wherever a key or a
   message can reach them, rather than by calling internals directly.
@@ -831,6 +855,12 @@ config and isn't tracked, so a fresh clone needs
   `TestFoldingShrinksWhatThePersonaIsSent` checks that the fold turn stands
   exactly where the scar stands, one turn for the whole run, arriving as
   `persona.RoleSystem` rather than as the expanded bits or a gap.
+  `BenchmarkTheComposerUnderAFullDraft` is the only benchmark in the tree
+  and is `draftLimit`'s second argument made re-derivable: `Model.View` and
+  one key press through `Model.Update`, separately, on drafts from 4,000 to
+  400,000. It is a benchmark rather than a test because no number in it
+  should redden a gate — the machine sets them, and the same code on a
+  slower machine is slower and no more wrong.
   `TestTheRequestGoroutineTouchesNeitherViewNorModel` races the update loop
   — bits landing and folds firing on the caller's own copy — against the
   closures a batched command hands back, reading the answer only off the

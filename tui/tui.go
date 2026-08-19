@@ -555,7 +555,7 @@ func Load(store *memory.Store, shown, votes memory.View, save Save) Model {
 	ta := textarea.New()
 	ta.Placeholder = "say something"
 	ta.Prompt = openPrompt
-	ta.CharLimit = 4000
+	ta.CharLimit = draftLimit
 	ta.ShowLineNumbers = false
 	ta.SetVirtualCursor(false)
 	ta.SetHeight(3)
@@ -840,10 +840,197 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, beat(msg.epoch)
 	}
 
+	// Text the composer cannot hold whole is not taken at all.
+	//
+	// The textarea's own rule is the other one: it cuts what was offered down to
+	// whatever room is left and stores that, silently. Measured before this
+	// branch existed — a 216,000-rune paste left a 4,000-rune draft — and the
+	// draft is what becomes a bit, so the record's copy of somebody's file was a
+	// cut of it with nothing marking the cut. That is the same forgery [Model.fit]
+	// refuses to commit against a turn, arriving one layer earlier, and the
+	// record is a worse place for it than the wire: a request is over when it is
+	// answered and a bit is kept forever.
+	//
+	// Refusing leaves the person holding it, which is the right place for it to
+	// be. Their clipboard still has the file and the notice says what would fit.
+	// The alternative — take what fits and say so — leaves them with a draft that
+	// is most of a file and a decision to make about a boundary they did not
+	// choose and cannot see.
+	//
+	// A key press goes through the same gate as a paste, because a paste does not
+	// always arrive as one. Bracketed paste is a terminal feature; without it the
+	// same file arrives here as key presses, and a composer at its limit drops
+	// each of them and says nothing. That is the identical cut spelled one key at
+	// a time, and it ends in the identical bit.
 	var taCmd, vpCmd tea.Cmd
+
+	if offered, ok := insertion(msg); ok && m.crowded(offered) {
+		limit, wide := m.composer.CharLimit, m.composer.Length()
+
+		// A composer that is already full answers without trying, and this is
+		// about the second way a paste arrives rather than about tidiness. Where
+		// bracketed paste is off, a 216 KB file is 216,000 key presses, and every
+		// one of them past the ceiling would otherwise pay for a trial insert and
+		// then for setting the whole draft back — a copy of 65,536 characters,
+		// per key, for as long as the terminal keeps sending.
+		//
+		// The slow part is not this branch and cannot be fixed here: every insert
+		// walks the whole draft, so filling the composer a key at a time is
+		// quadratic in the draft. Measured in tmux at 100x30, 70,000 characters
+		// pasted into a terminal with bracketed paste off were still arriving
+		// seventeen minutes later. What this path decides is only what the keys
+		// after the ceiling cost, and it makes them cheap rather than making them
+		// the most expensive keys in the run. `docs/DEBT.md` carries the rest.
+		//
+		// It is the one place a number in the notice is not measured off the
+		// composer. Nothing can be measured here — no insert happens — so the
+		// sentence says the ceiling, which is a fact about the composer rather
+		// than about the key, and says nothing it would have to compare.
+		if limit > 0 && wide >= limit {
+			m.trouble = unfilled(limit)
+			m.sync()
+			return m, nil
+		}
+
+		was, rows := m.composer.Value(), m.composer.LineCount()
+		row, col := m.composer.Line(), m.composer.Column()
+
+		// Judged after the fact rather than before it, because the count on the
+		// wire is not the count the composer would store: it sanitizes what
+		// arrives first — a tab becomes four spaces, a carriage return becomes a
+		// row of its own — so a pre-check against the raw runes agrees with the
+		// textarea's own arithmetic everywhere except the boundary, and the
+		// boundary is the whole of what this is for. The limit comes off, what
+		// was offered is measured whole, and the limit goes back before anything
+		// can see it missing. This is Update's own copy of the Model and nothing
+		// else holds it.
+		m.composer.CharLimit = 0
+		m.composer, taCmd = m.composer.Update(msg)
+		m.composer.CharLimit = limit
+
+		// The row ceiling is asked about first, and it is not ours: bubbles stops
+		// an insert at 10,000 rows on its own, after the character limit and
+		// independently of it, so lifting the limit above does not lift that one.
+		// It is asked first because it is the one that runs *during* the insert —
+		// a paste cut there never reached the composer's width at all, so the
+		// width measured below would be of what survived rather than of what was
+		// offered, and the second question would be asked about the wrong string.
+		//
+		// Both numbers in each notice are measured rather than derived, and they
+		// are the same measurement: what the composer took, and what it had room
+		// to take. Nothing here converts between a count of runes and a count of
+		// columns, which is what the first version of this did — and it printed a
+		// pair of numbers whose own comparison said the refused paste should have
+		// fit.
+		var refused notice
+		switch kept := m.composer.LineCount() - rows; {
+		case kept < linesIn(offered):
+			refused = unpastedRows(linesIn(offered), kept)
+		case limit > 0 && m.composer.Length() > limit:
+			refused = unpasted(m.composer.Length()-wide, limit-wide)
+		}
+
+		if refused.up() {
+			m.composer.SetValue(was)
+			m.recompose(row, col)
+			m.trouble = refused
+			m.sync()
+			return m, nil
+		}
+
+		m.viewport, vpCmd = m.viewport.Update(msg)
+		return m, tea.Batch(taCmd, vpCmd)
+	}
+
 	m.composer, taCmd = m.composer.Update(msg)
 	m.viewport, vpCmd = m.viewport.Update(msg)
 	return m, tea.Batch(taCmd, vpCmd)
+}
+
+// insertion is the text a message would put into the composer, and whether it is
+// a message that puts text in at all.
+//
+// Two kinds reach it and what separates them is the terminal's doing rather than
+// the person's: the same file arrives as one paste where bracketed paste is on
+// and as a run of key presses where it is not. Both are guarded, because the
+// composer's limit is enforced identically against both and drops the overflow
+// of both without a word.
+//
+// A key that carries no text — an arrow, a page key — is not an insert and is
+// left alone. The gate above restores the draft when it refuses, and a message
+// that could not have changed the draft has nothing to restore and nothing to
+// weigh.
+func insertion(msg tea.Msg) (string, bool) {
+	switch msg := msg.(type) {
+	case tea.PasteMsg:
+		return msg.Content, true
+	case tea.KeyPressMsg:
+		return msg.Text, msg.Text != ""
+	}
+	return "", false
+}
+
+// crowded reports whether text could reach either of the composer's ceilings.
+//
+// It is the gate on the gate. Refusing whole means being able to put the draft
+// back, which means copying it before the insert, and doing that on every
+// keystroke of ordinary typing would put a copy of the whole draft between a
+// person and every letter they type. This answers no for those and yes for the
+// two cases that matter: anything with a newline in it, and anything near the
+// ceiling.
+//
+// Four columns a byte is an over-estimate on purpose. A tab is the widest a
+// single rune gets — four spaces once the sanitizer has it — and no rune is
+// fewer bytes than columns, so a false yes here is possible and a false no is
+// not. That asymmetry is the whole point: a false yes costs one copy of a draft,
+// and a false no is the silent cut this exists to refuse.
+//
+// The row side asks only whether there is a newline at all, because the row
+// ceiling belongs to bubbles and there is no way to see how close it is without
+// inserting. A paste has newlines; a key press cannot, since enter is claimed
+// further up and never reaches here.
+func (m Model) crowded(text string) bool {
+	return m.composer.CharLimit <= 0 ||
+		m.composer.Length()+4*len(text) > m.composer.CharLimit ||
+		linesIn(text) > 0
+}
+
+// linesIn is how many rows text costs the composer, which is not the number of
+// newlines in it.
+//
+// bubbles sanitizes what arrives before storing it and maps '\r' and '\n' alike
+// onto a newline of its own, so a file with CRLF endings arrives double-spaced
+// and each of its lines costs two rows here. That is a fact about a dependency
+// rather than about this program, which is why
+// [TestACarriageReturnCostsARowTheWayANewlineDoes] holds it and not this
+// sentence.
+func linesIn(s string) int {
+	return strings.Count(s, "\n") + strings.Count(s, "\r")
+}
+
+// recompose seats the caret back on a row and column after the draft has been
+// put back to what it was.
+//
+// SetValue empties the composer and types the draft in again, which leaves the
+// caret at the end of it. A refusal restoring a draft somebody was editing the
+// middle of would therefore move their caret without saying so, inside the one
+// notice whose entire claim is that nothing moved.
+//
+// It walks because there is no exported way to seat the caret on a row: CursorUp
+// steps a *visual* line, which is not a row when a row wraps, so the loop is
+// written against the row it wants rather than against a count of steps. The
+// bound is the visual lines a draft can have — every one of them is at least one
+// column wide — and it is here because a loop that leans on a dependency's own
+// clamping to terminate is a hang the first time the dependency changes its
+// mind.
+func (m *Model) recompose(row, col int) {
+	for range m.composer.Length() + 1 {
+		if m.composer.Line() <= row {
+			break
+		}
+		m.composer.CursorUp()
+	}
+	m.composer.SetCursorColumn(col)
 }
 
 func (m Model) View() tea.View {
@@ -1061,6 +1248,52 @@ func (m Model) footer() string {
 			"esc stop · shift+↑ keep",
 			"esc stop",
 		}
+	// A draft the window cannot hold, and it sits directly under the wait for one
+	// reason: these are the two states where enter does not do what the row above
+	// says it does. The waiting branch exists because "enter send" while a reply
+	// is in flight is the screen lying about its own keys, and this is the same
+	// lie with a different cause — enter will record this draft and will not ask
+	// anybody about it.
+	//
+	// It is an antecedent and that is the whole of why it is here rather than
+	// only in the notice afterwards. The composer draws three rows however long
+	// the draft is, so a person who has pasted a file is holding something whose
+	// size nothing on this screen reports; being told after pressing enter is
+	// being told after the composer has been emptied. Bits fade before they fold,
+	// and this is the same promise about the other end of the conversation.
+	//
+	// What survives every cut is "not asked", which is also the last rung of the
+	// notice's own header. The antecedent and the receipt say one thing in one
+	// wording on purpose: a person who reads the footer and then presses enter
+	// anyway should meet the sentence they already read, not a second vocabulary
+	// for the same event.
+	//
+	// It sits above the notice's own branch and so has to carry that branch's one
+	// key, because these two are the pair that can be up together: a paste
+	// refused into a draft that is already past the window leaves a block on the
+	// screen and an oversize draft under it. The other states below are
+	// exclusive of each other and this one is not, so esc is named here rather
+	// than a rung being spent on ordering the two.
+	case m.tooLargeToAsk(strings.TrimSpace(m.composer.Value())):
+		ladder = []string{
+			"enter records it · the model is not asked · shift+↑/ctrl+o keep · ctrl+u unfold · ctrl+c quit",
+			"enter records it · the model is not asked · shift+↑/ctrl+o keep · ctrl+u unfold",
+			"enter records it · the model is not asked · ctrl+u unfold",
+			"enter records it · the model is not asked",
+			"enter records it · not asked",
+			"not asked",
+		}
+		if m.trouble.up() {
+			ladder = []string{
+				"enter records it · the model is not asked · esc dismiss · ctrl+u unfold · ctrl+c quit",
+				"enter records it · the model is not asked · esc dismiss · ctrl+u unfold",
+				"enter records it · the model is not asked · esc dismiss",
+				"enter records it · not asked · esc dismiss",
+				"not asked · esc",
+				"not asked",
+			}
+		}
+
 	case m.trouble.up():
 		ladder = []string{
 			"enter send · esc dismiss · shift+↑/ctrl+o keep · ctrl+u unfold · ctrl+c quit",
@@ -1206,6 +1439,23 @@ func (m *Model) send() tea.Cmd {
 	if len(m.shown) > 0 && !m.ranked {
 		m.mark = m.shown[len(m.shown)-1]
 		m.sync()
+	}
+
+	// And an ask the persona's window cannot hold is recorded and not sent.
+	// [Model.tooLargeToAsk] carries why the line is where it is.
+	//
+	// The bit is written first and deliberately. What a person said happened, and
+	// the record keeps what happened whether or not a model was ever shown it —
+	// that is D1 and it is also the only thing that makes the notice's header
+	// true. What this leaves behind is a question with no answer, which
+	// [Model.troubleBlock] already calls incomplete rather than a lie.
+	//
+	// It returns no command, so no wait goes up and [Model.settle] has nothing to
+	// end: there is no request in flight to be the antecedent of.
+	if m.tooLargeToAsk(text) {
+		m.trouble = m.unasked(text)
+		m.sync()
+		return nil
 	}
 
 	return m.begin()

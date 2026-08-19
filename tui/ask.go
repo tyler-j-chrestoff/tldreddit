@@ -69,6 +69,71 @@ const (
 	// glyph is the only thing left saying the send is held.
 	openPrompt = "› "
 	heldPrompt = "╎ "
+
+	// draftLimit is the largest draft the composer will hold, in the unit the
+	// composer counts in: the columns it has to draw, so a wide glyph spends two
+	// of it and a tab spends four. Everything on this surface that compares a
+	// draft against it is measured in that same unit rather than converted into
+	// it — see [unpasted], which printed a rune count against it once and
+	// contradicted itself on the screen.
+	//
+	// It was 4,000, written as a bare number in [Load] with no comment in a file
+	// where every other constant carries an argument — which is what an
+	// unexamined default looks like, and it was one. Measured: a 216,000-rune
+	// paste into that composer left 4,000 runes and said nothing, so the bit that
+	// reached the record was a cut version of what the person pasted, with
+	// nothing anywhere marking the cut. That is the record forgetting something
+	// nobody was told about, which is the one thing D1 refuses.
+	//
+	// # Why this number
+	//
+	// It is twice the window, and it is written as twice the window rather than
+	// as 65,536 because that is the rule and the number is only what the rule
+	// currently comes to. The composer has to be able to hold a draft the model
+	// cannot, or the wall a person meets on a pasted log is this one and never
+	// the one with a sentence about the model attached. Measured 2026-08-19, a
+	// draft of exactly this size: a CSV of timestamps and integers is estimated
+	// at 0.600 tokens a character, so 39,300 tokens against a window of 32,768 —
+	// it passes, and [Model.tooLargeToAsk] is what that person meets. A run of
+	// digits, the densest thing [tokensIn] prices, comes to 1.000 and passes by
+	// twice. English prose comes to 0.239, or 15,700 tokens, so on prose this
+	// limit binds first instead — which is fine, because it now says so.
+	//
+	// The margin on the case that matters is therefore about a fifth, not an
+	// order of magnitude, and it is what a smaller multiple would spend: at the
+	// window itself a real log would sit *under* the threshold and the ask would
+	// go silently. Re-measure this before moving the constant, rather than
+	// dividing.
+	//
+	// # What it costs, measured rather than argued
+	//
+	// The other constraint is that the composer has to draw it, and this number
+	// does not satisfy that constraint — it is chosen by the rule above and the
+	// cost is paid rather than optimised. Measured 2026-08-19 at 100x30 on a
+	// Ryzen 9800X3D, per draft size, [Model.View] and one key press through
+	// [Model.Update]: 4,000 runes 0.82ms and 0.78ms; 20,000 3.1 and 3.8; 60,000
+	// 9.1 and 11.3; 65,536 10.0 and 12.2; 200,000 29.0 and 5.2; 400,000 58.0 and
+	// 10.0.
+	//
+	// The two are separate — Update does not draw — so typing one character into
+	// a composer at this ceiling costs the sum, 22.2ms against a sixty-hertz
+	// frame of 16.7ms. A full draft is about one frame behind the keyboard on a
+	// fast machine and worse on a slow one. That is the state a person is in for
+	// the seconds between pasting a log and pressing enter, and it is linear, so
+	// none of it is a cliff.
+	//
+	// The two largest keystroke figures fall rather than rise because those
+	// drafts are past the ceiling, where a key press is refused instead of
+	// inserted and the refusal is the cheap path — see [unfilled] and
+	// [Model.crowded]. Re-check with [BenchmarkTheComposerUnderAFullDraft]: `go
+	// test ./tui/ -run XXX -bench TheComposerUnderAFullDraft -benchtime 20x`.
+	//
+	// A persona with a larger window than the default puts the composer back in
+	// front of the model's ceiling, because this constant follows the default and
+	// not [Model.askWindow]. That is not the hazard it was: a paste this cannot
+	// hold is refused whole and named, so whichever wall binds, it announces
+	// itself.
+	draftLimit = 2 * persona.DefaultWindow
 )
 
 // tokensIn estimates what a string costs the model, in tokens.
@@ -233,6 +298,193 @@ const (
 	askShare = 2
 )
 
+// baseCost is what a request costs before anybody in it has said anything: the
+// chat template's floor plus the standing instruction, which is sent ahead of
+// every turn.
+//
+// It is a method rather than a line inside [Model.fit] because two places now
+// have to price the same request and must not drift: fit decides what is sent,
+// and [Model.tooLargeToAsk] decides whether to send at all. Two copies of this
+// arithmetic would be a screen that refuses an ask fit would have carried, or
+// worse, one that promises to carry an ask fit will not.
+func (m Model) baseCost() int { return promptFloor + tokensIn(m.persona.System) }
+
+// turnCost is what one turn costs the request: its own text plus the role
+// markers the chat template wraps it in. Same reason as [Model.baseCost] for
+// being named rather than inlined.
+func turnCost(s string) int { return turnFraming + tokensIn(s) }
+
+// askWindow is the whole window the persona asked for, resolved the way
+// persona resolves it: zero means [persona.DefaultWindow], and it never means
+// "let the server choose".
+//
+// [Model.askBudget] is a fraction of this and answers a different question. The
+// budget is a policy about how much of the window to spend on history; this is
+// the wall. Nothing this program sends can pass it without ollama silently
+// dropping turns to make it fit, which is the failure D75 exists about.
+func (m Model) askWindow() int {
+	if m.persona.Window <= 0 {
+		return persona.DefaultWindow
+	}
+	return m.persona.Window
+}
+
+// tooLargeToAsk reports whether saying text would make a request the persona's
+// window cannot hold at all.
+//
+// It prices the one case that reaches it: text as the newest turn, with nothing
+// else sent. That is not a simplification — it is what [Model.fit] does with an
+// oversized newest turn, and its own comment says why. The newest turn is sent
+// whatever it costs and its cost goes into the same running total as everything
+// else, so a turn that alone passes [Model.askBudget] leaves nothing for the
+// history behind it and the request is that one turn. If that turn also passes
+// the *window*, the request cannot be answered honestly by anyone: ollama drops
+// from the front until what is left fits, reports nothing about what it dropped,
+// and answers as though it had read the whole thing.
+//
+// The threshold is the window and not [Model.askBudget], because between those
+// two the request is degraded and not corrupted: one turn goes on its own, the
+// model reads all of it, and what is missing is the conversation around it,
+// which the person still has on their own screen and which [standingInstruction]
+// tells the model can be missing. Above the window the model reads *part of the
+// message*, chosen by somebody else, with nothing anywhere saying which part.
+//
+// # What the threshold does not carry, said rather than left to be found
+//
+// [tokensIn]'s measured envelope is 0.77 to 1.33 estimate-over-measured, and it
+// reads low on exactly the material that gets pasted — so an ask estimated just
+// under the window can really be a third over it, and that band still fails
+// silently. A margin would close it and is deliberately not here: the notice
+// this raises prints the two numbers it compared, and a threshold the screen
+// cannot state is one nobody can check. The band is narrow, the overrun inside
+// it is the smallest this failure comes in, and the alternative is a screen
+// whose own arithmetic does not add up in front of the person reading it.
+//
+// It also prices the text rather than what goes on the wire, and those differ by
+// [persona.Escape], which adds one backslash for every control marker it finds
+// in a turn before sending it. Ordinary writing contains none and the difference
+// is nothing; a pasted transcript of a chat template contains one per turn. It
+// is inside the envelope above rather than beside it — a paste dense enough for
+// the markers to matter is dense enough for the estimate to read low anyway —
+// and it is named here because a number that is right about a string this
+// program does not send should say so.
+func (m Model) tooLargeToAsk(text string) bool {
+	return m.baseCost()+turnCost(text) > m.askWindow()
+}
+
+// unasked is the notice for an ask that was recorded and not sent, in the two
+// halves [notice] keeps apart.
+//
+// The problem is the two numbers this decision was made from, so that a person
+// who disagrees with the decision can see what it was made on. The fix is the
+// one thing they can do here — say less of it — followed by the reassurance the
+// header only half gives: the words are on the record, and it was the asking
+// that stopped rather than the recording.
+//
+// The clause about half a message is not padding and it is not an apology. It
+// is the answer to the question anybody sensible asks next, which is why the
+// program did not just send as much as fits: a message cut down is not what
+// they said, and the model has no way to tell the piece from the whole. That
+// rule is [Model.fit]'s and this is where a person meets it.
+func (m Model) unasked(text string) notice {
+	return notice{
+		kind: troubleUnasked,
+		problem: fmt.Sprintf(
+			"this is an estimated %s tokens and %s has room for %s at a time, and half a message is not what you said",
+			thousands(m.baseCost()+turnCost(text)), m.persona.Name, thousands(m.askWindow())),
+		fix: "say a smaller piece of it and ask again." +
+			" What you wrote is on the record above and stays there; it was the asking that stopped.",
+	}
+}
+
+// unpasted is the notice for text the composer could not hold whole.
+//
+// Whole or not at all, which is [Model.fit]'s rule about a turn arriving one
+// layer earlier and for the same reason. The textarea's own behaviour is to cut
+// what arrives down to whatever room is left and take that — so a 216,000-
+// character file became a 4,000-character draft, and the bit written from it was
+// a cut version of somebody's file with nothing marking the cut. A record whose
+// whole claim is that it can say what produced what cannot hold a document that
+// is silently not the document.
+//
+// needs and room are both measured off the composer and are the same
+// measurement: what it took with its limit lifted, and what it had room to take.
+// Neither is a count of the runes on the wire, and the sentence names no unit
+// for that reason. The composer's own ceiling is in the columns it has to draw,
+// so a wide glyph costs it two and a tab costs it four, and an earlier version
+// of this notice said "that is 40,000 characters and there is room for 65,536
+// here" about a paste it had just refused — two numbers whose own comparison
+// said it should have fit. A person who checks the arithmetic on the screen has
+// to find it holds.
+//
+// room is what was left rather than [draftLimit], because a person with half a
+// draft already typed has half the room, and the number that explains a refusal
+// is the one the refusal was made on.
+func unpasted(needs, room int) notice {
+	return unpastedBecause(fmt.Sprintf(
+		"that needs room for %s and there is %s left here, and half a file is not the file",
+		thousands(needs), thousands(room)))
+}
+
+// unpastedRows is the same refusal made by the other ceiling: bubbles stops an
+// insert at ten thousand rows, after the character limit and independently of
+// it, so a paste of short lines is cut there while the composer still has room
+// by width. Measured before this existed: 60,000 runes of four-character lines
+// left 39,999 of them in the composer, under the limit, with nothing raised.
+//
+// Rows are a unit a person can check against their own file, so unlike
+// [unpasted]'s pair this one names it — with the caveat that a CRLF file spends
+// two rows a line here. See [linesIn].
+func unpastedRows(needs, room int) notice {
+	return unpastedBecause(fmt.Sprintf(
+		"that is %s lines and there is room for %s here, and half a file is not the file",
+		thousands(needs), thousands(room)))
+}
+
+// unfilled is the refusal when there is no room left at all, which is the one a
+// person meets by typing rather than by pasting: the draft is at the ceiling and
+// every further key does nothing.
+//
+// It prints one number where the other two print a pair, and that is the honest
+// shape here. A pair exists so a person can check the comparison the program
+// made; when the room is none, there is no comparison to check and the useful
+// fact is the ceiling itself. It also drops "half a file is not the file", which
+// is an argument about a document and reads as nonsense over a single keystroke.
+func unfilled(limit int) notice {
+	return unpastedBecause(fmt.Sprintf(
+		"the draft is full at %s and there is no room for more of it", thousands(limit)))
+}
+
+// unpastedBecause is the half these three share. The fix and the header are the
+// same whichever ceiling was reached, because what a person does about it is the
+// same and so is the thing they cannot otherwise tell: the draft did not change.
+func unpastedBecause(problem string) notice {
+	return notice{
+		kind:    troubleUnpasted,
+		problem: problem,
+		fix: "send or shorten what is here and it will take more." +
+			" Nothing changed — the draft is exactly what it was before the key, caret and all.",
+	}
+}
+
+// thousands writes n with separators, because the numbers this screen prints
+// about a window are five digits long and a person should not have to count
+// them. Everywhere else on this surface a count is small enough to read whole.
+func thousands(n int) string {
+	s := fmt.Sprintf("%d", n)
+	if n < 0 {
+		return "-" + thousands(-n)
+	}
+	var b strings.Builder
+	for i, r := range s {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			b.WriteByte(',')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
 // askBudget is half of the window the persona asked for, and it is the price
 // above which a turn is not admitted to the request.
 //
@@ -334,12 +586,10 @@ func (m Model) askBudget() int {
 	// budget computed from zero would send the model nothing at all — and that
 	// rule now lives in two packages, because persona keeps its own copy
 	// unexported. [TestAPersonaThatNamesNoWindowIsBudgetedTheDefaultOne] is what
-	// notices if the two ever disagree.
-	window := m.persona.Window
-	if window <= 0 {
-		window = persona.DefaultWindow
-	}
-	return window / askShare
+	// notices if the two ever disagree. [Model.askWindow] is where that
+	// resolution lives, so this and [Model.tooLargeToAsk] cannot disagree about
+	// what window a persona that did not say is being held to.
+	return m.askWindow() / askShare
 }
 
 // fit is [Model.askBudget] applied: the newest turns that fit, and the ones
@@ -427,20 +677,27 @@ func (m Model) askBudget() int {
 // **What this does mean is that the budget does not prevent the failure it was
 // written to prevent, in the one case that reaches it.** A paste large enough
 // to matter overruns num_ctx whether or not this function is here. That is
-// D75(a) again, arrived at through this function's own documented rule, and it
-// is recorded in `docs/DEBT.md` rather than fixed here, because fixing it means
-// deciding what the surface *says* to a person whose paste will not fit — and
-// that is a question about the interface, not about arithmetic.
+// D75(a) again, arrived at through this function's own documented rule.
+//
+// It is closed a layer up rather than here, and the split is the point: this
+// function's job is to choose what is sent, and the question the failure asked
+// was what a person is *told*. [Model.tooLargeToAsk] is where the line is now
+// drawn — an ask whose newest turn alone passes the whole window is recorded and
+// not sent, with the two numbers on the screen — so this function is never
+// handed that case from the composer. Everything above still describes what it
+// would do if it were, which is not hypothetical: [Model.turns] builds from the
+// view, and a bit large enough to reach it can arrive from another writer
+// through cmd/tldr's rejoin rather than from this keyboard.
 func (m Model) fit(turns []persona.Turn) []persona.Turn {
 	if len(turns) == 0 {
 		return turns
 	}
 	budget := m.askBudget()
-	spent := promptFloor + tokensIn(m.persona.System)
+	spent := m.baseCost()
 	newest := len(turns) - 1
 	kept := make([]persona.Turn, 0, len(turns))
 	for i := newest; i >= 0; i-- {
-		cost := turnFraming + tokensIn(turns[i].Content)
+		cost := turnCost(turns[i].Content)
 		// The newest turn is sent whatever it costs; see the paragraph on that
 		// above. Every other turn that does not fit is stepped over, and the
 		// walk carries on into the older ones — one unaffordable turn is not a
@@ -695,32 +952,30 @@ type waiting struct {
 // program where that event was written down, so it grew a sticky flag to stop a
 // send clearing it and a clock to stop it reading as a caption on whatever was
 // newest. Both are gone with the case that needed them — a fragment is a bit
-// now, drawn as one — and the second meaning that stands today is unsaved below.
+// now, drawn as one — and the second and third meanings that stand today are
+// [noticeKind]'s below.
 type notice struct {
-	// unsaved is the second kind of trouble: the record holds what happened and
-	// the file behind it does not.
+	// kind is which of four true sentences the block heads with.
 	//
-	// A bool rather than a second type, because the block is one grammar and
-	// only its first row differs. This one leads with "nothing was recorded",
-	// which is the exact opposite of what a failed save means, and a person told
-	// their words are lost while the words are on the screen above the sentence
-	// saying so has been taught not to believe the harness. Everything under the
-	// header — the wrap, the arrow, the warm/dim split, the ladder — is the same
-	// object, and a second type would be this flag with a renderer around it. It
-	// would also want a second slot in [Model.note]'s precedence, and then an
-	// answer to which block wins when the model is down *and* the disk is full,
-	// which is a worse question than the one it set out to solve.
+	// A value on this notice rather than a type of its own, because everything
+	// under the header — the wrap, the arrow, the warm/dim split, the ladder — is
+	// one object, and a second type would be this field with a renderer around
+	// it. It would also want a second slot in [Model.note]'s precedence, and then
+	// an answer to which block wins when the model is down *and* the disk is
+	// full, which is a worse question than the one it set out to solve.
 	//
 	// It is not only the headline, and a comment here said it was. It also
-	// decides when the notice goes: a save that gets through clears this one and
-	// leaves anybody else's alone, and [Model.saved] is the only thing that knows
-	// one did.
+	// decides when the notice goes: a save that gets through clears
+	// troubleUnsaved and leaves anybody else's alone, and [Model.saved] is the
+	// only thing that knows one did.
 	//
 	// # What this shape does not hold, stated rather than left to be found
 	//
 	// A failed save is a *standing condition* and every other notice is an
-	// *event*, and a field cannot tell them apart. Two consequences, both real
-	// and neither closed here:
+	// *event*, and a field cannot tell them apart. Two consequences of that,
+	// both real and neither closed here, and they are about troubleUnsaved
+	// alone — troubleUnasked is an event, like the failure the zero value
+	// stands for, and wants the same clearing rule:
 	//
 	// A request that fails while this is up overwrites it — [Model.update]'s
 	// failedMsg branch assigns a fresh notice — so the screen stops saying the
@@ -731,6 +986,16 @@ type notice struct {
 	// is still true afterwards. The header does not advertise the key for that
 	// reason, which is a mitigation and not a fix.
 	//
+	// A third thing this shape does not hold, about which notice loses when two
+	// collide, and it loses backwards. troubleUnsaved comes back on its own: the
+	// next change to the record tries the file again and raises it again if it
+	// fails. Nothing re-raises troubleUnasked ever — the record keeps the words,
+	// so what is left afterwards is a question with no answer, which is the same
+	// shape a failed request and an abandoned wait both leave, and the notice was
+	// the only thing that said which. So a save failing while an unasked notice
+	// is up takes the one slot for the claim that can recover and spends the one
+	// that cannot.
+	//
 	// The shape that closes both is the one [Model.endsUnfinished] already argues
 	// for in this file: derive it. A [checkpoint] of the last save that got
 	// through, compared against the current one, answers "is the file behind"
@@ -739,11 +1004,54 @@ type notice struct {
 	// would carry the one number this block cannot say today, which is how far
 	// behind. That is a change to how the save path holds state, so it is written
 	// down here rather than done in passing.
-	unsaved bool
+	kind noticeKind
 
 	problem string
 	fix     string
 }
+
+// noticeKind is which of this program's four layers the trouble is about. In
+// the order a person's words travel them: the composer they are typed into, the
+// record they are put on, the file behind the record, and the model in front of
+// it. The block's header is the only row that differs between them, and it is
+// the row that cannot be shared, because each one's claim is false of the other
+// three — "nothing was recorded" over a transcript of the words is the same lie
+// as "nothing was pasted" over a composer that holds them.
+//
+// The constants below are not in that order and cannot be: the zero value has to
+// be the request that failed, because [explain] builds one out of an error
+// without naming a kind, and a zero value that meant anything else would make
+// every unnamed notice a false claim.
+type noticeKind int
+
+const (
+	// troubleUnrecorded is the request that failed: nothing reached the record.
+	// The zero value, because it is what a notice built from an error is, and
+	// [explain] builds those without naming a kind.
+	troubleUnrecorded noticeKind = iota
+
+	// troubleUnsaved is the save that failed: the record holds it and the file
+	// does not.
+	troubleUnsaved
+
+	// troubleUnasked is the ask that was recorded and not sent: the record and
+	// the file both hold it, and the model was never shown it. It is the only
+	// one of the three that is not a failure of anything — it is a decision this
+	// program made, which is exactly why it has to be printed. See
+	// [Model.tooLargeToAsk].
+	troubleUnasked
+
+	// troubleUnpasted is text the composer could not hold: nothing changed
+	// anywhere, including the draft, which is still exactly what it was. The
+	// other three are about something that did happen; this one is about
+	// something that did not, and the draft being untouched is the claim.
+	//
+	// It covers a key press as well as a paste, because the composer's ceiling
+	// does not know which one it is refusing and neither does the person: the
+	// same file arrives here as a paste or as a run of key presses depending on
+	// whether the terminal has bracketed paste on. One layer, one claim.
+	troubleUnpasted
+)
 
 func (n notice) up() bool { return n.problem != "" }
 
@@ -1321,8 +1629,8 @@ func (m Model) pendingLine() string {
 // on the record, which leaves the record showing a question with no answer —
 // incomplete, but not a lie.
 //
-// The two headers are the one thing here that cannot be shared, and that is why
-// [notice].unsaved exists. A save that failed is the mirror image of a request
+// The three headers are the one thing here that cannot be shared, and that is why
+// [noticeKind] exists. A save that failed is the mirror image of a request
 // that failed: everything did reach the record, and the file behind it did not.
 // Leading that with "nothing was recorded" would be this surface telling a
 // person their words are gone while the words are on the screen above the
@@ -1368,13 +1676,57 @@ func (m Model) troubleBlock() string {
 	// other block reports an event that is over; this one reports a condition
 	// that is still true after the key is pressed, and a header advertising the
 	// key that hides it teaches a person to treat it as noise.
-	if m.trouble.unsaved {
+	switch m.trouble.kind {
+	case troubleUnsaved:
 		head = []string{
 			"╌╌ recorded here, not on disk ╌╌",
 			"╌╌ recorded, not on disk ╌╌",
 			"╌╌ not on disk ╌╌",
 			"╌╌ not on disk",
 			"not on disk",
+		}
+
+	// "Not asked" is the third claim and it is the same grammar again: what is
+	// safe is what the transcript above already shows, and the news is the layer
+	// that did not get it. This one is further along than the other two — the
+	// record has it and the file has it — so the reassurance is worth more room
+	// here than on either of them, and the widest rung spends it saying the two
+	// things that did happen before the one that did not.
+	//
+	// It never says "saved", though by the time anyone reads it the save has
+	// usually been through. This function does not know that — [Model.saved] runs
+	// after the frame this notice was raised in — and a header that happened to
+	// be true because of the order two functions run in is a claim nobody can
+	// check from here.
+	case troubleUnasked:
+		head = []string{
+			"╌╌ recorded here, the model was not asked ╌╌",
+			"╌╌ recorded here, not asked ╌╌",
+			"╌╌ recorded, not asked ╌╌",
+			"╌╌ not asked ╌╌",
+			"╌╌ not asked",
+			"not asked",
+		}
+
+	// The one header of the four whose news is that nothing happened at all, and
+	// it is the same rule as the other three read from the other end: what the
+	// widest rung spends its room on is the fact nothing else on the screen can
+	// say. Here that is the draft being untouched — the composer is right above
+	// this block and looks the same as it did, which is exactly the state a
+	// person cannot tell from "it took some of it".
+	//
+	// "Added" rather than "pasted", which is what it said while a paste was the
+	// only way to reach it. The same refusal now answers a key press, because a
+	// paste arrives as key presses wherever bracketed paste is off, and a header
+	// reading "nothing was pasted" to somebody who was typing sends them looking
+	// for a paste they did not make.
+	case troubleUnpasted:
+		head = []string{
+			"╌╌ nothing was added · the draft is unchanged ╌╌",
+			"╌╌ nothing was added ╌╌",
+			"╌╌ not added ╌╌",
+			"╌╌ not added",
+			"not added",
 		}
 	}
 

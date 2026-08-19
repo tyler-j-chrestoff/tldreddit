@@ -207,7 +207,7 @@ func TestAFailedSaveKeepsTheSessionAndSaysSo(t *testing.T) {
 	if !m.trouble.up() {
 		t.Fatal("a save failed and the screen says nothing about it")
 	}
-	if !m.trouble.unsaved {
+	if m.trouble.kind != troubleUnsaved {
 		t.Error("the failure is drawn as a request that never reached the record, which is the opposite of what happened")
 	}
 	if m.trouble.problem != full.Error() {
@@ -232,7 +232,7 @@ func TestAFailedSaveKeepsTheSessionAndSaysSo(t *testing.T) {
 	if got := len(m.votes); got != 1 {
 		t.Errorf("%d votes recorded, want 1 — the session stopped taking them after a failed save", got)
 	}
-	if !m.trouble.unsaved {
+	if m.trouble.kind != troubleUnsaved {
 		t.Error("the second failure is not on screen, so a person freeing space has nothing telling them to")
 	}
 }
@@ -253,7 +253,7 @@ func TestASaveThatGetsThroughClearsTheNoticeTheLastOneRaised(t *testing.T) {
 
 	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyUp, Mod: tea.ModShift})
 	m = next.(Model)
-	if !m.trouble.unsaved {
+	if m.trouble.kind != troubleUnsaved {
 		t.Fatal("the failure never went up, so there is nothing here to clear")
 	}
 

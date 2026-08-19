@@ -1,29 +1,115 @@
 # Open debt
 
-- **A paste large enough to matter still overruns `num_ctx` in silence, and the
-  budget does not stop it.** D83 measured `Model.fit` against the shapes
-  `Model.askBudget`'s own comment names. On everything but a paste the budget is
-  inert — 200 real bits at 200x120 send the same 85 turns and an estimated 1,838
-  tokens at windows of 4,096, 8,192, 32,768, 131,072 and 262,144 alike — and on
-  a paste it fails the way that matters: twenty ordinary bits then a 50 KB paste
-  as the newest thing said sends one turn at an estimated 45,671 tokens against
-  a window of 32,768, and a 168 KB paste sends one at 152,599. The newest turn
-  is sent whatever it costs (`Model.fit`, and it is the right rule — a request
-  with the question missing is a different request), so the request goes past
-  num_ctx and ollama drops the oldest turns without saying so. **That is D75(a),
-  the failure the whole budget was built to prevent, reached through the
-  budget's own documented rule.**
+- **A paste large enough to matter overran `num_ctx` in silence — closed, and
+  the interesting part is that it could not be reached from the keyboard.** D83
+  measured `Model.fit` and left the interface question open: what does the
+  surface say to a person whose paste will not fit. The answer built is that it
+  does not send it. An ask whose newest turn alone passes the persona's whole
+  window is recorded and not asked (`Model.tooLargeToAsk`, `Model.unasked`), the
+  footer says so before enter rather than after, and the notice prints the two
+  numbers the decision was made on. The threshold is the window and not
+  `Model.askBudget`: between the two the request is degraded and not corrupted,
+  since one turn goes on its own and the model reads all of it.
 
-  **It is open because the fix is an interface question rather than an
-  arithmetic one.** Everything arithmetic here is already decided and already
-  right; what is undecided is what the surface *says* to a person whose paste
-  will not fit — nothing today. The candidates are a scar-shaped note in the
-  view before the request goes, refusing the ask with the size in it, or
-  `persona.Answer.Truncated`'s treatment applied to the prompt side. Choosing
-  needs the seat that owns what the person sees, not the one that owns `fit`.
-  Re-check: `TestAnOversizedNewestTurnLeavesNothingForTheHistoryBehindIt`
-  asserts the overrun directly, so this item is live for exactly as long as that
-  test passes.
+  **What the first red run found is the part worth keeping.** `Load` set
+  `ta.CharLimit = 4000` — a bare number in a file where every constant carries an
+  argument — so a full draft of English cost an estimated **2,778 tokens against
+  a window of 32,768**, and nothing typed or pasted at this keyboard could reach
+  D83's case at all. That 2,778 is prose and is not the ceiling: `tokensIn`
+  charges a digit a whole token and a non-ASCII symbol two, so the densest
+  4,000 runes this composer could hold were 4,000 tokens of digits or 8,000 of
+  emoji. The conclusion is what survives — the worst case clears the window by
+  about four times — and it is stated this way because the earlier version gave
+  the prose reading alone and called it the largest. Measured directly: a 216,000-rune
+  paste left a 4,000-rune draft, silently, and *that* draft is what became a bit.
+  The record's copy of somebody's file was a cut of it with nothing marking the
+  cut, which is the failure D1 refuses, one layer before the one D83 was about.
+  The limit is now `draftLimit = 2 * persona.DefaultWindow` — written as the
+  rule rather than as 65,536, because the composer has to be able to hold a
+  draft the model cannot or the only wall anyone ever meets is this one. Text
+  it cannot hold whole is refused whole with a notice rather than cut, and a
+  key press goes through the same gate as a paste, because a terminal without
+  bracketed paste delivers a file as key presses and the composer drops those
+  past its ceiling just as silently.
+
+  **The second ceiling nobody chose.** `bubbles/v2@v2.1.1` stops an insert at
+  10,000 rows (`textarea.maxLines`), after the character limit and independently
+  of it, so `CharLimit` does not reach it and setting `CharLimit = 0` does not
+  lift it. Measured: a 60,000-rune paste of four-character lines left 39,999
+  runes in the composer, under `draftLimit`, with nothing raised — the guard
+  built to stop a silent cut passed one. Both ceilings are now asked about, rows
+  first, and both numbers in every refusal are measured off the composer rather
+  than converted into its unit: an earlier version compared a rune count against
+  a display-width budget and refused a 40,000-rune CJK paste with *"that is
+  40,000 characters and there is room for 65,536 here"*, two numbers whose own
+  comparison said it should have fit.
+
+  Residuals, none of them silent:
+
+  - `tokensIn`'s envelope is 0.77–1.33, so an ask estimated just under the
+    window can really be a third over it and still go. A margin would close it
+    and is deliberately absent: the notice prints the numbers it compared, and a
+    threshold the screen cannot state is one nobody can check.
+  - Which wall a person meets depends on what they pasted, and the margin
+    between them is a fifth rather than an order of magnitude. Measured at
+    65,536 characters, 2026-08-19: English prose is estimated at 0.239 tokens a
+    character (15,700 tokens, so the composer binds and the model never does); a
+    CSV of timestamps and integers at 0.600 (39,300, so the window binds); a run
+    of digits at 1.000. Both walls announce themselves, which is the property
+    that matters; neither is the same number.
+  - Below 22 columns the footer's antecedent is gone to `abridged`'s ellipsis
+    like every other ladder on that row. The receipt after enter still says it.
+    Swept 18..70 against a draft of 60,000 digits: `not asked` is whole from
+    width 22 up and absent at 21 and below, and the ellipsis is present at every
+    width in that range. The figure here used to read "about 28 columns" beside
+    a reading at 31 that contradicted it; both were unsourced, and the
+    re-derivation that replaced them is the sweep just described.
+  - **Filling the composer one key at a time is quadratic, and raising the
+    ceiling made that much worse on terminals without bracketed paste.** Every
+    insert walks the whole draft, so the cost of arriving at the ceiling goes
+    with the square of it: measured in tmux at 100x30, 70,000 characters pasted
+    into a session with bracketed paste off were still arriving seventeen
+    minutes later. Under the old 4,000 it took seconds — because it stopped at
+    4,000 and threw the rest away. Nothing here is lost now and nothing is
+    silent; it is slow. No value that satisfies the rule above avoids it, since
+    the ceiling must clear the window, so closing it means a composer that does
+    not walk its own draft per key.
+  - A CRLF file arrives double-spaced. `bubbles`' sanitizer maps `\r` and `\n`
+    alike onto a newline of its own, so each line of such a file costs two rows
+    in the composer and the refusal's row count is twice the file's. `linesIn`
+    charges what the composer charges, which is what makes the refusal correct
+    and the sentence surprising.
+  - `troubleUnasked` loses its slot to `troubleUnsaved` and should not. A failed
+    save re-raises itself on the next change to the record; nothing re-raises the
+    unasked notice ever, and what it leaves behind — a question with no answer —
+    is the same shape a failed request leaves. `notice.kind`'s own comment
+    carries the shape that closes it.
+
+  Re-check: `TestAnAskTooLargeForTheWindowIsRecordedAndNotAsked`,
+  `TestAnAskTheWindowCanStillHoldIsAsked` (the only check that can tell the
+  window from the budget), `TestADraftTooLargeToPasteIsRefusedWhole`,
+  `TestAPasteWithMoreLinesThanTheComposerHoldsIsRefusedWhole`,
+  `TestTheRefusalsTwoNumbersAreInOneUnit`,
+  `TestAKeyTheComposerCannotHoldIsSaidRatherThanDropped`,
+  `TestAPasteTheComposerCanHoldLandsWhole`. In a real terminal, with a scratch
+  record:
+
+  ```
+  tmux new-session -d -s look -x 100 -y 30 -e TLDR_RECORD=$PWD/rec ./tldr
+  tmux load-buffer -t look big.log     # 215,999 bytes
+  tmux paste-buffer -t look -p         # -p: bracketed, so one paste
+  tmux capture-pane -t look -p
+  ```
+
+  What that prints, run 2026-08-19: `╌╌ nothing was added · the draft is
+  unchanged ╌╌` over `that needs room for 215,999 and there is 65,536 left
+  here`, and **no record file at all** — a refused paste changes nothing, so
+  there is nothing to save and nothing to look at. (The recipe here used to
+  say the file would be 65,496 bytes, which is the signature of the cut this
+  change exists to prevent; it was written from arithmetic and not from a
+  terminal.) `TestAnOversizedNewestTurnLeavesNothingForTheHistoryBehindIt` still
+  passes and still describes `fit`; what changed is that the surface no longer
+  walks into it.
 - **A fold can still open the view on an answer whose question it took, once a
   message can be half a screen — and closing it needs a ruling in `memory/`.**
   The budget counts rows now (`Model.rows`), which is what the unit mismatch
