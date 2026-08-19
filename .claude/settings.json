@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/session-start.sh",
+            "timeout": 10,
+            "statusMessage": "Reading the last session's handoff…"
+          }
+        ]
+      }
+    ]
+  }
+}

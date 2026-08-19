@@ -6139,9 +6139,476 @@ designs at agent volume; until then the silence is the finding.
 
 ---
 
-## After D77
+---
 
-D77 is the newest entry published here. As of this push it is also the newest
+## D78 — The apparatus for keeping six paragraphs private had grown large enough to generate its own secrets
+
+**2026-08-18**
+
+**Status:** tested for the measurement, ruling for the change.
+
+**(a) TESTED: the ratio, which is what settles it.** Measured this
+checkpoint:
+
+| | lines |
+|---|---|
+| non-test Go, minus comments | ~7,600 |
+| comments inside that Go | 9,328 |
+| `docs/` + `CLAUDE.md` | 17,201 |
+| handoffs | 5,319 |
+
+**About four lines of prose about this system for every line of it**, and
+`docs/PUBLICATION.md` alone was 1,161 — fifteen percent of the size of the
+whole program, existing to withhold roughly six paragraphs.
+
+The recursion is the finding. D62, D64, D65 and D70 are withheld *because
+they describe the withholding mechanism*. D70 is an entire entry about
+defects in the apparatus that exists to publish entries. **The complexity had
+started manufacturing the secret it then needed machinery to protect**, and
+every checkpoint added to a backlog no checkpoint drained — twenty entries at
+last count, formally named in `docs/DEBT.md` and never worked.
+
+**(b) The founder's ruling, and it is his rather than the CEO's.** "I feel
+like we make a lot of mistakes by trying to not make a lot of mistakes. Keep
+It Super Simple. And then we use complexity *intentionally* where we need
+it." He is right and the ratio above is the evidence. Recorded as his because
+the CEO built the apparatus and did not see it.
+
+**(c) The change. One private file; everything else publishes.**
+`docs/PRIVATE.md` holds the business position, burn, the competitor reads and
+the shareholder's pages. It never syncs. Nothing else is withheld.
+
+What that deletes: the per-entry ruling record, the withheld backlog, the
+numeric-cutoff question D20(a) settled, and the class of entry that has to be
+withheld for describing the mechanism — because a mechanism this small is not
+a secret. `docs/PUBLICATION.md` goes from 1,161 lines to 61, and the old one
+is kept at `docs/archive/PUBLICATION-2026-08.md` for its ruling record only,
+since losing *what was withheld and why* is how something ships twice by
+accident.
+
+What it costs, stated because it is a real cost: an entry mixing private and
+public content must be split **when it is written**, by the author. That is
+better than it sounds — the author knows why, once, where a reviewer was
+re-deriving the boundary every checkpoint forever.
+
+**(d) What survives, and the test for what survives.** Two checks stay,
+because neither is a judgement call and both catch things cheaply: no private
+commit hash reaches the public tree, and a file that has drifted gets swept
+**whole rather than as a diff**. The second is here because it broke the same
+day: three private hashes shipped inside `docs/CODE.md`, copied wholesale
+after weeks of drift, and every check comparing *what changed* was blind to
+them by construction. A long-drifted file is not a small diff; it is a large
+one arriving at once.
+
+Also surviving: reading the produced tree rather than the plan for it, which
+caught three aftermath defects in this checkpoint's own cuts.
+
+**(e) The CEO's own disproportion, recorded because it is the same disease.**
+Told about those three hashes, the founder's answer was that they are random
+hex with no use to anybody. He is right. Seven opaque characters naming a
+commit in a repository nobody can read discloses nothing, cannot fetch
+anything, and is not a credential. The CEO called it a leak, wrote a
+paragraph about it into a commit message, and offered to rewrite public
+history over it — spending more words on three unusable strings than on the
+live bug fixed the same hour. **That is (b) demonstrated rather than
+described:** the anxiety about mistakes was itself the larger mistake.
+
+The rule that follows, and it is narrow on purpose: spend rigor where being
+wrong is *permanent* — a number entering an append-only record, a claim about
+what a test proves. Elsewhere, say the thing.
+
+---
+
+**What would change any of this.** (c) reverses if a split-at-write-time
+entry turns out to be harder than a reviewer's cut — the signal is an author
+putting public reasoning into `docs/PRIVATE.md` to avoid the split, which
+would make the private file grow without the business growing. (d)'s
+whole-file sweep reverses if it never catches anything across five
+checkpoints. (a) is re-derivable at any time and worth re-deriving: if the
+prose-to-code ratio is still four to one a month from now, this entry did not
+work and something larger is wrong than a manifest.
+
+---
+
+## D79 — The cut left four files pointing at what it removed, the test D78 wrote to falsify itself would have indicted a change that worked, and the twenty-four old gaps stay gaps
+
+**2026-08-18**
+
+**Status:** mixed. (a), (b), (c) and the evidence under (e) are tested — each
+was re-derived by command by two `decision-guard` instances that did not
+write D78, and then again by the CEO, who corrected three of their figures in
+the process. (d), (e) and (f) are rulings.
+
+Commands below refer to D78's commit as `$D78C`; set it without needing a
+private hash:
+
+```
+D78C=$(git log --format=%H --grep='^D78:' -1)
+```
+
+D78 replaced a 1,161-line publication manifest with a 61-line rule and cut
+`CLAUDE.md` by 132 lines net — 167 removed, 35 added, `git show --numstat
+$D78C`. Its own step 4 says to read the produced tree rather than the plan
+for the cut. That step was run this checkpoint against the tree D78 actually
+produced, and what it found divides in two: **aftermath in four files, none
+of it visible in the diff**, because in each case a sentence that did not
+change was left pointing at something that did; and **two figures inside
+D78's own added text**, which were visible in the diff and which nobody
+checked.
+
+**(a) TESTED, and it is the one that would have cost something: the seat that
+runs every checkpoint was sent to a file the cut had emptied.**
+`.claude/agents/archivist.md` said the board brief "publishes to the URL
+recorded in `CLAUDE.md`," and instructed the seat to *always* pass that URL to
+the Artifact tool, naming the failure that follows from not doing so: a second
+diverging dashboard while the shareholder's bookmark goes stale with no
+receipt. `git show $D78C:CLAUDE.md | grep -c 'claude.ai/code/artifact'` → `0`.
+The URL had moved to `docs/PRIVATE.md`, which `archivist.md` never named. **So
+the procedure written to prevent that failure became, at the moment of the
+cut, the thing that would cause it.** Fixed by naming the new file and
+heading, and saying the old location is gone.
+
+The other three, fixed the same checkpoint and named here so the count in the
+first paragraph has a referent: `CLAUDE.md` stopped naming
+`docs/PUBLICATION.md` at all, leaving the operating procedure reachable only
+through a decision entry in a 9,900-line log — D14's own distinction, since
+retrievable is not discoverable; `docs/DEBT.md` still carried the
+twenty-entry withheld backlog as live debt to drain, which D78(c) had
+dissolved; and `docs/PRIVATE.md`, being a paste of sections cut from
+`CLAUDE.md`, carried two D15-era notes saying they must stay in `CLAUDE.md`
+"until the public/private split actually happens" — a split that happened at
+D23, on 2026-08-11.
+
+**(b) TESTED: one of D78's four figures cannot be re-derived from its own
+label, and none of the four carried a command.** `9,328` (comments) and
+`5,319` (handoffs) reproduce to the line; `~7,600` and the fifteen-percent
+ratio are correct. `17,201`, labelled "`docs/` + `CLAUDE.md`", is not wrong —
+it is unlabelled: it excludes `docs/handoffs/`, excludes every non-`.md` file
+(`docs/board.html` is 429 lines), and was taken at the parent commit rather
+than at D78 itself. Three plausible re-derivations at D78 give 23,103, 22,674
+and 17,355; none is 17,201. The entry explicitly invites re-derivation, so
+the next session to accept that invitation would have logged a D68-shaped
+correction against a figure that was right. **The charter's rule — a claim
+about what is true does not get made without the command that produced it —
+was broken four times inside the entry whose own closing rule is to spend
+rigor where being wrong is permanent.**
+
+**(c) TESTED: D78's falsification test measures a quantity the change was not
+trying to move, and this entry supersedes it.** D78 says: if the
+prose-to-code ratio is still four to one a month from now, the entry did not
+work and something larger is wrong than a manifest. But prose *rose* in the
+commit that wrote it — `docs/*.md` + `CLAUDE.md` went 22,520 → 22,674 —
+because the 1,161-line manifest was archived rather than deleted, which the
+same entry required. The ratio at D78 is 4.21. A September session
+re-deriving it finds ~4:1 and concludes, on D78's own instruction, that the
+change failed, when what the change did was move prose out of the way rather
+than destroy it.
+
+The quantity that moved is the **operating surface** — the files a session
+reads in order to work, which is `docs/*.md` + `CLAUDE.md` less
+`docs/handoffs/` and less `docs/archive/`. It fell 17,201 → 16,194, by 1,007
+lines. So, replacing D78's test rather than deleting it, and stated so it can
+actually be run:
+
+```
+git ls-tree -r --name-only HEAD | grep -E '^(docs/.*\.md|CLAUDE\.md)$' \
+  | grep -v '^docs/handoffs/' | grep -v '^docs/archive/' \
+  | xargs -I{} sh -c 'git show HEAD:{} | wc -l' | paste -sd+ | bc
+```
+
+**D78 is falsified if that number is back above 17,201 on 2026-09-18** — the
+pre-cut level, one month out, on the population the cut was aimed at. Below
+it, the cut held. (An earlier review put the fall at 1,232 lines; it is
+1,007, and that correction is itself an instance of (b) — the 1,232 arrived
+without the command that produced it.)
+
+**(d) RULING: what a cut owes, and how this reads against D78(d).** D78(d)
+says reading the produced tree "caught three aftermath defects in this
+checkpoint's own cuts," and that is true of what it caught — inside the
+documents being cut. What it did not do is read the tree *around* them, which
+is where all four defects in (a) live: every one is a file that was not part
+of the cut, holding a sentence about a file that was. **So step 4 is a read of
+the produced tree, not of the produced file, and it is run by a seat that did
+not write the cut.** The operative question is not "does this document still
+make sense" but "what elsewhere pointed at what I removed" — `grep -rn` for
+the deleted string across `.claude/`, `docs/` and the charter, which is what
+found (a).
+
+**(e) RULING: D78 binds forward. The twenty-four entries withheld before it
+stay withheld — not because they are secret, and not because publishing them
+would be unsafe.** The obvious reading of "everything else publishes" is that
+the old gaps should now be backfilled, since the apparatus that made them is
+gone. Twenty-four numbers are missing from the public log, counted from its
+own list: D8, D9, D10, D15, D16, D17, D20, D21, D22, D23, D25, D29, D41,
+D43, D44, D45, D46, D47, D48, D56, D62, D64, D65 and D70. Twelve of those
+hold `docs/PRIVATE.md`-class material and stay out on content; D64 has no
+ground of its own left (see (f)); and the remaining eleven were screened for `docs/PRIVATE.md`-class
+content by a seat that did not write them and came back clean: D16, D17, D20,
+D21, D22, D23, D29, D45, D46, D47, D48. **Nothing in them is a secret, and
+the honest reason they do not ship is that they would not be legible if they
+did:**
+
+- **They argue about a premise that stays private.** D16, D17, D20, D21 and
+  D23 are structurally an argument *about* D15's gate, and D15 is one of the
+  entries held on content. Roughly sixty of their pointers lead to entries a
+  public reader cannot open. A reader would get the argument and not the
+  thing argued about — a legibility loss, in a project whose thesis is
+  legibility.
+- **About eighteen of their fifty-seven `file:line` citations resolve, in the
+  public tree, to unrelated prose.** Not to nothing: D65(e) withheld a
+  private line number on the ground that a reader "gets nothing rather than
+  an acknowledged absence," and this is worse, because the public files are
+  long enough that the numbers hit. D46 cites `docs/DECISIONS.md:1543` for
+  D29(a); public 1543 is a fragment about a substrate's pitch. Three of
+  D47's five `CLAUDE.md` citations point past the end of a 443-line file.
+- **Five sentences would be false in the tree they landed in.** D20 opens
+  "This entry is private. It concerns the publication mechanism (D15, D16)
+  and does not go into the public tree," and D22 opens with its own variant
+  of the same declaration — an instruction, printed in the public tree,
+  telling a reader they cannot read what they are reading. D46(f) says
+  "`## Who is running this` is removed wholesale from the public tree"; that
+  heading is line 25 of the public `CLAUDE.md`. D46(f) lists eight entries as
+  "genuinely unpublished," four of which are published today. D47(d) rules
+  `docs/CODE.md` and `docs/DEBT.md` "private-only"; both sit in the public
+  `docs/` now.
+- **Nobody has asked.** There is no reader waiting on these, and the charter's
+  "instruments are not progress" applies to documents too.
+
+**What this clause does not claim, because a review knocked the claim down
+before it shipped.** An earlier draft said correcting any of that would mean
+editing history, so the choice was verbatim-or-nothing. That is a false
+dilemma and it was the load-bearing sentence: publishing an entry into the
+public tree for the first time, with a superseding correction appended, edits
+nothing — it is the operation this record is built on, and **this very entry
+performs it**, quoting all five of those false sentences into the public tree
+where a correction makes them harmless. So the gaps are held on cost and
+legibility, which is a weaker and truer reason than safety. **The door stays
+open and it takes one person to open it:** ask for any of the twenty-four and
+it publishes, correction appended. A year with no such request confirms this
+clause; a request retires it.
+
+**(f) CORRECTION: the reasons this checkpoint gave for withholding four
+entries were wrong, and one entry has no reason left at all.** The
+attribution first, because a correction whose object cannot be found is this
+project's own D1 failure in miniature: the labels being corrected here were
+**not** on record in any file. They come from a provisional screen the CEO ran
+this checkpoint, in a dispatch brief, splitting ten entries under one combined
+heading of "business or competitor content." That screen was wrong in three
+places, and the seat it was handed to attacked it in the harder direction
+rather than confirming it:
+
+- **D41** was screened as business content. Its real disqualifier is D41(d),
+  which describes a third party's safety-critical design work — the
+  population it serves, an open `[BLOCKED] — no counsel engaged` marker
+  against its own legal claims, and a gap table the entry itself says would
+  function as a roadmap for someone trying to find people who do not want to
+  be found. A different and higher sensitivity class than anything else in
+  this record, as D41 says in its own text. **Write that reason down**,
+  because the next reader applying a business lens finds only the word
+  "burn" in a filename enumeration and reclassifies it.
+- **D65 and D70** were screened as competitor content. They contain none —
+  D65 returns zero hits on the full business-and-competitor screen, and D70
+  had already recorded the null itself: the only outside names in that cohort
+  are competitor tokens quoted *as grep strings*, which assert nothing about
+  what those texts say. What actually holds them is that each is an itemized
+  index of what was cut from which entry and why, the same ground the
+  archived manifest is held on.
+- **D62** is correctly withheld and needs no restatement: it quotes the burn
+  and revenue position verbatim.
+- **D8** is on the list only because a public stub has named it unpublished
+  since the first push; it is the commercial mandate and it is content, so it
+  belongs with D9 and D10 rather than in a category of its own — an earlier
+  draft of this entry counted twenty-three by leaving it out, which made the
+  record's own accounting fail against a reader who simply counted the gaps.
+- **D64's ground does not survive.** It is mechanism end to end, and D78(c)
+  dissolved that class. It stays unpublished under (e) with the rest of its
+  cohort, and it is named here as the one entry of the twenty-four whose
+  withholding has no reason of its own left — which is what (e) means by
+  calling these history rather than judgments standing today.
+
+This clause also discharges D70(a), which required that a publication ruling
+reversing a prior one be appended here rather than edited into the manifest:
+D46(f)'s reversal — "Who is running this" is in the public tree, not removed
+from it — is now on the record where it can be found.
+
+---
+
+**What would change this.** (b) and (c) are corrections and do not reverse;
+they stand until a later entry shows the re-derivations wrong, and (c) now
+carries the command that would do it. (d) reverses if two consecutive cuts
+are read against the produced tree and come back with no cross-file
+aftermath, which would make the pass ceremony — the counter is in
+`docs/DEBT.md` and stands at zero, because the only cut checked so far was
+not clean. **(e) reverses on a person, not a metric: anybody outside this
+project asking for one of the twenty-four.** One request publishes that
+entry, correction appended. A year with no request is (e) confirmed rather
+than merely unchallenged.
+
+---
+
+---
+
+## D80 — A prohibition on a technique was hiding a property nobody had stated, the context-management road is closed on purpose, and the research beat's own budget slack outlived the paper that prompted it
+
+**2026-08-18**
+
+**Status:** mixed. (a) is a read of one source and is asserted. (b) and (c)
+are rulings. (d) is tested — the figures were already in this repository's own
+comments before the beat started.
+
+**(a) The beat, and what the source actually claims.** The founder dropped a
+link with no comment, which is how research input arrives here: Google
+Research on TurboQuant — PolarQuant into a quantized Johnson–Lindenstrauss
+transform, KV cache to 3 bits with no training or fine-tuning, "6x reduction"
+in KV memory, "8x performance increase" for 4-bit on H100s against 32-bit
+keys, and optimal 1@k recall on GloVe.
+
+**The CEO's first framing of it to the founder was wrong and is corrected
+here:** it was described as windows getting six times cheaper, which is not
+what the post claims. The 6x is KV *memory at a given sequence length* and the
+8x is attention throughput — serving economics, the same context cheaper to
+serve, not a longer window. The correction matters because the version of the
+threat that needed window growth was the only version that reached this
+project's design. Also worth recording: the post states no limitations and no
+accuracy loss anywhere, which for a compression result means it is marketing
+rather than a paper, and D68 is this project's record of what it costs to
+trust an unchecked figure.
+
+**(b) RULING: no capability whose quality is set by somebody else's inference
+budget rather than by the community's judgment — which closes the model-side
+context-management road as a consequence rather than as a ban.** Stated that
+way on (c)'s own lesson, since a flat "no summarization tier, no
+retrieval-into-window, ever" is a technique prohibition and would have to be
+relitigated the first time one of those was the obvious way to serve the
+person. What is actually true is the property: a feature that competes on how
+cleverly we pack a context window is a feature whose ceiling is set by a
+competitor's compute, and this project has none to spend there. Every
+capability on that road fails the property today, which is why the road is
+closed today; if one ever passes it, the property is what adjudicates, not
+this sentence.
+
+`Model.fit` and `Model.askBudget` stay — `fit` earned itself by holding a real correctness bug
+(D76(f)), and `askBudget` is a *fraction* of `Persona.Window` rather than a
+constant, so a larger window moves one input and every derived quantity
+follows. What they are not is the first step of a context-management product.
+And nothing in the pitch gets shaped like "we solve context limits" — not as
+a rule about technique but because the claim stops being true on somebody
+else's release schedule, and the thesis never needed it.
+
+The reason the whole class of result is a tailwind rather than a threat is in
+the charter already: **capacity is not allocation.** Cheaper long context
+makes agents cheaper to run at length, which increases the volume aimed at one
+person. No quantization scheme raises a human's reading rate, and the
+human-side budget is not in tokens at all — `Model.budget()` is terminal rows,
+and no advance in inference efficiency makes a 30-row terminal taller.
+
+**(c) RULING: vectors may find, may merge, and may offer an order that is
+asked for. What they may not do is become the default order or an order
+nobody can interrogate — and that is a property, not a technology.** This
+clause was wrong three times before it was right, each time corrected by the
+founder within the hour, and the corrections are worth more than the ruling.
+First draft: "never retrieval," which collapses *finding* into *ranking* —
+retrieval answers which bits are about this, ranking answers which of them
+matters, and semantic retrieval is the most valuable thing an embedding does.
+Second draft kept "never orders the view"; his objection was that it is not
+zero-sum, and a system already offering two orders can offer a third. Third
+draft said the ordering signal is *a person's* judgment, and his correction
+was three words: **a community's judgement, not a person's.**
+
+That third one is not a wording fix. A per-person relevance model is what
+every personal-memory tool ships. This project's claim is the forum one: a
+community settles its own way of ranking, consolidating and retrieving, and
+it *authors* that ordering rather than merely being stored in it. Centring
+the property on one human would have quietly rewritten the thesis into the
+competitor's, in the entry that exists to protect it.
+
+What actually has to hold, stated as the thing rather than as a ban:
+
+- **The default order is the community's judgment, and it is durable.** The
+  votes of that forum's participants are what order the record and what
+  survives across sessions — the human vote-first (D4) and at a weight of
+  their own, agent votes as a tier rather than a ban (D63), the vote itself
+  the consolidation signal (D30). The differentiator is *whose judgment
+  orders it and whether that judgment persists*, not which mathematics
+  proposed a candidate list.
+- **Any order can say why it is that order.** A vote is legible — someone
+  said this matters, and the record holds who and when. A similarity score is
+  not, on its own; it becomes legible when the surface says what it is
+  similar *to* and somebody chose to ask. Legibility is the requirement; the
+  technique is free to be whatever works.
+- **Unchanged by any of this: no vote reaches the persona** (D39(a),
+  `TestNoVoteReachesThePersona`). A community authoring its ranking is not
+  the same as a model scoring itself, and the fold note stays vote-free for
+  that reason.
+
+Under that, the answer to "why not both" is both:
+
+- **Retrieval is not barred, it is unbuilt.** D58(a) closed the query surface
+  on scale grounds — `top -n 0 | grep` reaches behind scars at 35 bits — and
+  `grep` cannot find a synonym. The case for embeddings arrives exactly when
+  many agents produce more than a person can read, which is the mission
+  rather than an edge case. The trigger stays D58(a)'s: Tyler, from real use,
+  unable to reach something he knew was there. **A design question about
+  retrieval is not that trigger**, and this clause is what the question
+  produced instead.
+- **A similarity view is admissible as a mode, not a default** — "more like
+  this," entered deliberately, labelled, reversible, sitting beside the
+  chronological view and the vote-ranked one (`ctrl+t`) rather than replacing
+  either. Two orders already exist; a third that someone asks for takes
+  nothing away from the second.
+- **Consolidation is where an embedding earns its keep first.** The scar's
+  model-facing note is a word bag (D60), a lexical proxy for "what was this
+  about" that misses two agents saying the same thing in different words.
+  That is an input the fold consults, not something a person is shown.
+- **Both remain blocked on measurements that do not exist**, and building
+  either now would be adding a dependency to fix a problem of unknown size,
+  which is D5 with fresh vocabulary. The consolidation trigger: a fold
+  measurement showing the word bag merging bits that are not alike, or
+  failing to merge bits that are, at a rate that changes what a person can
+  reach.
+
+**The general lesson, which is worth more than the ruling.** An absolute
+about *what is owed the person* — the record does not forget (D1), published
+history is never rewritten, an order can always say why it is that order — is
+load-bearing, and its value comes from having no exceptions. An absolute
+about *which technique may be used* is usually the seat avoiding a judgement
+it would otherwise have to make case by case. Both drafts of this clause were
+the second kind wearing the first kind's clothes. **Prohibitions attach to
+properties; techniques get evaluated.**
+
+**(d) TESTED, and it is what the beat actually turned up: the model-side
+budget is slack by roughly five times, and it was measured before this
+question was asked.** `Model.askBudget`'s own doc comment records real turns
+off this record at 1,545 and 1,781 tokens, short lines at 970 and 2,290,
+against a budget of 16,384 — "every one of those is under 3,000." So the
+scarcity the model-side machinery guards was, when finally measured, mostly
+absent, and no efficiency gain anywhere was needed to make that true.
+
+That leaves a question this entry does not settle: **is `fit`'s value budget
+enforcement, or turn-selection correctness?** D76(f) points at the second,
+since what `fit` caught was a suffix bug rather than an overflow. If it is the
+second, the budget framing around it is decoration on a correctness mechanism,
+and the doc comments say the wrong thing about why the code exists. That is a
+`principal-go-engineer` question with a measurement attached, not a premise
+question, and it is the one work unit this beat earned.
+
+---
+
+**What would change this.** (b) reverses if a person's own record stops
+fitting in the window they can afford — the failure would look like `fit`
+dropping turns in ordinary use rather than in a pathological paste, which
+`docs/DEBT.md` can carry a counter for. (c)'s property — a person's judgment is the default and
+durable ordering signal, and any order can say why it is that order —
+reverses only if judgment turns out not to be the differentiator, which would
+be a different company. Everything else in (c) is a build question with a
+trigger, and the first to fire should be met by looking at prior art before
+building, per D58(k). (d) is re-derivable from `tui/ask.go`'s comments at any
+time and stops being true the moment someone measures a turn over 16,384.
+
+---
+## After D80
+
+D80 is the newest entry published here. As of this push it is also the newest
 entry in the private record, but that is a fact about this moment and not a
 standing one: the private record gains entries between pushes, so by the time
 you read this the log has probably continued somewhere you cannot see.
@@ -6149,9 +6616,55 @@ you read this the log has probably continued somewhere you cannot see.
 This paragraph exists because the two kinds of gap are not equally visible.
 A missing number in the middle of a numbered list announces itself — you can
 see that D8 and D70 are not there. A log that simply stops does not. Without
-this note, a record ending at D77 would read as though D77 were the last
+this note, a record ending at D80 would read as though D80 were the last
 decision taken, rather than the last one published, and nothing else in this
 file would tell you otherwise.
 
 Some entries carry an interior lettered gap for the same reason — (a) then
 (c), with no (b). That is the same kind of announced absence, one level down.
+
+**Everything written after D78 publishes whole.** That is true and it is the
+rule going forward: an entry mixing private and public content is now split
+at the moment it is written, so nothing dated after D78 needs a ruling to
+reach this file.
+
+**What is missing from before D78, named rather than left as a silent gap.**
+Twenty-four entries between D1 and D77 are absent, counted from this file's
+own gaps: D8, D9, D10, D15, D16, D17, D20, D21, D22, D23, D25, D29, D41,
+D43, D44, D45, D46, D47, D48, D56, D62, D64, D65 and D70. They split into
+two groups of twelve, below. They stay absent as history, not as a backlog
+someone is working through (D79(e)).
+
+**The stub above ("D8, D9, D10 — not published") is append-only and is not
+edited to say this, but its promise no longer holds**: it says its published
+list "stays true until more is published," and more has — D69 and D71
+through D79 have all published since it was written. Read what is published
+from `## Decisions in force` in `CLAUDE.md` or from this file directly, not
+from that stub's list.
+
+**Twelve are held because the material in them is not this project's to
+publish: D8, D9, D10, D15, D25, D56, D62, D65, D70, D41, D43 and D44.** D41
+describes a third party's safety-critical design work, a different and
+higher sensitivity class than anything else in this record; D43 and D44
+survey the founder's own machine; D8, D9, D10, D15, D25, D56 and D62 carry
+the business position or a competitor read; and D65 and D70 are itemized
+indexes of what was cut from which entry, which is an index of private
+material and is held on the same ground as the archived manifest
+`docs/PUBLICATION.md` describes.
+
+**The other twelve — D16, D17, D20, D21, D22, D23, D29, D45, D46, D47, D48
+and D64 — hold nothing secret.** Eleven of them — all but D64 — were
+screened by a seat that did not write them and came back clean of
+`docs/PRIVATE.md`-class content. D64 was not part of that screen; it is in
+this group because D78 dissolved the mechanism it argued about and left it
+with no reason of its own, not because it was screened and cleared. They
+stay unpublished for legibility rather than secrecy: five of them (D16, D17,
+D20, D21, D23) argue about D15's own gate, which is withheld, so a reader
+would get the argument without the thing argued about; around eighteen of
+their `file:line` citations resolve, in this tree, to unrelated prose rather
+than to nothing; and nobody has asked for any of them.
+
+**Asking is what publishes one.** None of the twenty-four is withheld
+because it is unsafe to read. A specific request for any of them publishes
+it here, with a correction appended for whatever in it would otherwise read
+false in this tree.

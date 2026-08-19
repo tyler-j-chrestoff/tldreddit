@@ -3,6 +3,25 @@
 A forum-shaped memory for working with many agents at once, built so a person can
 actually see it thinking.
 
+> **Two trees, named explicitly on every command.** This is the public tree;
+> `/home/tyler/code/tldreddit` is a **separate, private repository with its
+> own history and no shared objects**, remote `tldreddit-private.git`
+> against this one's `tldreddit.git`. One letter apart — every command that
+> touches either tree names it explicitly, and code is never copied private
+> → public by hand: the filenames match, and the wrong direction would strip
+> private material out of the operative files.
+>
+> **This tree is append-only from its root.** A mistake already published
+> here is fixed by a new commit, never an amend or a force-push — including
+> a leak, because rewriting this history to remove a string costs more than
+> the string does.
+>
+> **What is withheld from this tree is one file, `docs/PRIVATE.md`, and
+> nothing else** — which is why it is absent here, along with the handful of
+> other paths named, with their reasons, in `docs/PUBLICATION.md`. That file
+> is the procedure that produces this tree from the private one, published
+> here too. Full reasoning: D15, D23, D41, D78, D79 in `docs/DECISIONS.md`.
+
 ## What we are building, in one paragraph
 
 A terminal client onto a memory that is shaped like a forum rather than a log.
@@ -63,8 +82,8 @@ settles and no mood does.
 
 ## How this organization runs
 
-**Tyler is the sole shareholder.** He supplies the capital, which here is
-compute. He holds what shareholders hold — the
+**Tyler is the sole shareholder.** He supplies the capital, which here is compute:
+a Claude Max subscription and API spend. He holds what shareholders hold — the
 right to be informed, the right to a return, and the right to fire the CEO. He
 does not hold operational control and has explicitly declined it.
 
@@ -83,6 +102,31 @@ asked for unmediated Claude judgment here. Do not invoke his personal skills
 project. If he invokes one explicitly, that is different. **The one narrowing:
 the CEO's own casting, in "Who is running this" above, which Tyler asked for
 directly. That section does not license anything in this paragraph.**
+
+**Compute is nearly free at the margin, not scarce.** Tyler pays a flat
+subscription with usage included up to rate limits, so marginal token cost is
+zero until a limit is hit. The scarce resource is throughput inside a
+rate-limit window, not money-per-token — so run subagents hard, and do not
+practice frugality about token count for its own sake; that targets the wrong
+thing. The failure to avoid is stalling mid-work-unit with uncommitted work
+because a limit got hit, not overspending. The figures are in
+`docs/PRIVATE.md`.
+
+## What is private
+
+This is the public tree. One file never reaches it: `docs/PRIVATE.md`, kept
+only in the private tree at `/home/tyler/code/tldreddit`, holding the
+business position, burn, the competitor reads and the shareholder's pages.
+Four more paths are absent here for the same reason applied rather than as
+exceptions to it — `docs/board.html`, `docs/handoffs/`, `.claude/craft/` and
+the archived manifest — each named with its reason in `docs/PUBLICATION.md`,
+which is itself published here.
+
+Everything else publishes. That is the whole rule (D78). It replaced a
+1,161-line manifest of per-entry rulings, a withheld backlog, and four
+decision entries that were themselves withheld for describing the mechanism
+— an apparatus that had grown large enough to generate the secrets it
+existed to protect.
 
 ## The discontinuity problem
 
@@ -126,12 +170,11 @@ manage down.
   cosmetic: unpadded, `session-10` sorts before `session-6` and the newest
   file is silently the wrong one (D45(m); `.claude/session-start.sh` now
   checks this and warns on a mismatch, but the filename is still what
-  makes the check pass — that script is absent here). **On arrival, read only the most recent file
+  makes the check pass). **On arrival, read only the most recent file
   there** for what the last session finished, where unfinished work
   stopped, and the one next action. Then tell Tyler to start a fresh
-  session, explicitly. That directory is absent here and is created on
-  first use; the handoffs themselves are working notes and are not
-  published.
+  session, explicitly. (`docs/handoffs/` is not part of this tree; see
+  item 3 below.)
 - **If two sessions are running, they end in one handoff, not two** (D28).
   It is written by whichever session owns the documentation surface, and it
   names every session's work; the other session writes nothing. Two files
@@ -143,6 +186,52 @@ manage down.
   sentence.
 - Tyler has agreed to relay any harness warning about context or compaction the
   moment he sees one. That signal is his; everything else here is yours.
+
+## When the handoff and the tree disagree
+
+**A clean ending is the goal, not a guarantee, and a stale handoff is normal
+rather than evidence something went wrong.** A session can be cut off by a rate
+limit, a crash or a closed terminal — and it can simply keep working after the
+handoff was written (session 3: work continued after the handoff, describing
+a repo state that no longer existed by the time anyone read it). Do not treat
+the gap as a crisis, and do not reconstruct it by reasoning. Go and look. In
+order of authority, highest first:
+
+1. **The git history of both repos.** `git log`, `git show <sha>`,
+   `git status`, and `git reflog` for commits orphaned by an amend. This is
+   what happened, as opposed to what someone wrote down about it. Commit
+   messages here are long on purpose, so `git log` is usually the fastest
+   true account of a session. The private tree at `/home/tyler/code/tldreddit`
+   has its own separate history that produced this one — check both if you
+   can see both; this tree alone still tells you what landed here and when.
+2. **`docs/DECISIONS.md`.** What was decided and why. Append-only, so a
+   contradiction between two entries is real information: the later one wins,
+   and the earlier one tells you what changed.
+3. **The newest file in `docs/handoffs/`, in the private tree.** A summary
+   written at a moment that may not have been the last moment. That
+   directory does not exist here — `docs/PUBLICATION.md` names why — so
+   this step is unavailable from inside this tree; it is listed for anyone
+   reading this file who also has the private one open.
+4. **This file, read from disk.** Current state, but prose, and prose is what
+   goes stale.
+5. **This file as the harness hands it to you — lowest authority of all, and
+   the only source here that can be stale without anything having gone
+   wrong.** A copy of `CLAUDE.md` is injected into every session's and every
+   subagent's context *before* anything is read, frozen at session start —
+   not the live file. Measured 2026-08-13: two subagents dispatched hours
+   after a rewrite both reported the old charter, one describing a committed
+   feature (`cmd/seam`) as unbuilt. **So: open this file from disk before
+   relying on it, and say so in every dispatch brief** — every seat in
+   `.claude/agents/` now carries a read-first instruction (D47). This seat's
+   own definition, `archivist.md`, is the one that most needs it — a stale
+   read here produces a wrong *file*, not just a wrong answer — and once
+   told the opposite ("auto-loads on arrival") before being caught and fixed.
+   Verify rather than trust this line: `grep -ci "read first"
+   .claude/agents/*.md`. A general-purpose agent carries no such instruction.
+
+The rule underneath all of it is the one this project keeps relearning:
+**a checkable claim that nobody re-derived is the defect to expect.** When two
+sources disagree, the one you can execute beats the one you can only read.
 
 ## The org
 
@@ -158,17 +247,22 @@ Definitions live in `.claude/agents/`. Current seats:
 | `principal-go-engineer` | Go implementation: `memory/`, `cmd/`, storage, tests, API verification | opus |
 | `tui-design-engineer` | The human surface: `tui/`, rendering, interaction, navigation, **and the persona's voice** — its standing instruction and what it is told about a fold. **Owns being the first user (D51, D53(e))** — running `tldr` for real work, not only to verify a change, and reporting what was unusable. Named because the surface is what a person meets, not what a file is called; `persona/`'s wire client stays with `principal-go-engineer` | opus |
 | `decision-guard` | Adversarial review for correctness, decision conformance, *and* comprehension review of anything bound for a public remote. Read-only | opus |
-| `archivist` | Continuity: `CLAUDE.md`, `docs/DECISIONS.md`, memory, handoffs | sonnet |
+| `archivist` | Continuity: `CLAUDE.md`, `docs/DECISIONS.md`, memory, handoffs, the board brief | sonnet |
 | `scope-adversary` | Argues against building it. Attacks the premise, not the code. Read-only, low authority by design | opus |
+| `tui-custodian` | Owns `tui/` as a standing responsibility rather than per-diff: reads the package whole on a schedule and reports where the code and its own account of itself have come apart. Read-only, no implementation authority — findings go to `tui-design-engineer` | opus |
 
-**Craft records, two seats only.** `principal-go-engineer` and
-`tui-design-engineer` each read `.claude/craft/<seat>.md` on arrival,
+**Craft records, three seats, and the third for a different reason.**
+`principal-go-engineer`, `tui-design-engineer` and `tui-custodian` each read
+`.claude/craft/<seat>.md` on arrival,
 alongside this file — append-only notes on their own tools and how this
 codebase fails review, each note carrying the version it was true of and the
-command that re-checks it. Those files are absent here; craft records are not
-part of this published tree. Both seats also carry `WebSearch`/`WebFetch` now,
+command that re-checks it. All three carry `WebSearch`/`WebFetch` too,
 granted alongside the records so a seat can learn a dependency moved rather
-than only how the pinned version behaves. `archivist` does not have a craft
+than only how the pinned version behaves. **`tui-custodian`'s record is
+deliberately separate from `tui-design-engineer`'s, though they read the same
+package (D76(e)):** a shared record would hand the custodian the builder's
+account of why the code is the way it is, and not inheriting that account is
+the whole of what the seat is for. `archivist` does not have a craft
 record — nothing has yet shown it accumulates tool-craft the way the two
 building seats do; that is a judgement to revisit on evidence, not a
 principle. **`decision-guard` and `scope-adversary` also carry
@@ -177,6 +271,23 @@ denial conflated research capability with craft memory; the capability is
 granted, the record still is not, on the same evidence standard as
 `archivist`'s. See D40, D58(l).
 
+**Craft records do not publish, and after D78 the reason is one line rather
+than a per-checkpoint sweep (D62(h), narrowing D40).**
+`tui-design-engineer.md` carries verbatim terminal captures naming a
+competitor, which is `docs/PRIVATE.md` material by D78(c)'s own list, and the
+records stay together rather than being split file by file — written down in
+`docs/PUBLICATION.md` beside the other paths that do not reach this tree.
+`.claude/craft/` is absent here. This tree still carries citations
+pointing at `.claude/craft/*` that resolve to nothing here — the count
+moves every time either tree gains prose, so read it from
+`grep -rho '\.claude/craft' --include='*.md' . | wc -l` rather than from a
+number written here — accepted as a comprehension-class cost rather than
+fixed (`docs/DEBT.md`). The same cost applies to decision references:
+roughly twenty-four of this file's `Dnn` citations point at entries a
+public reader cannot open (`docs/DECISIONS.md`'s "After D79" note names all
+twenty-four), including three of the five in the blockquote's own "Full
+reasoning" list at the top of this file.
+
 **Research is a scheduled beat, not a felt need (D58(k)), watching a named
 lineage rather than a generic search (D67(h)).** The cost of not looking is
 invisible — nothing announces a missed prior-art check the way a red test
@@ -184,20 +295,23 @@ announces a bug — so it cannot wait for one to be felt. One seat per
 checkpoint, rotating; one named trigger, **before building any instrument,
 look for one that exists**; craft records gain a second kind of entry, what
 a seat learned by *looking*, kept distinguishable from what it learned by
-building; the CEO takes the prior-art beat itself. **Standing watch, named at
-D67(h):** the self-improving-agent lineage (Gödel-machine line: DGM → HGM →
-DGM-H → RQGM → Mendel Gödel Machine).
+building; the CEO takes the prior-art beat itself once per checkpoint, on
+the `archivist` beat's cadence. **Standing watch, named at D67(h):** the self-improving-agent
+lineage (Gödel-machine line: DGM → HGM → DGM-H → RQGM → Mendel Gödel
+Machine), which has already paid off twice — D56(i)'s Zed sweep, then
+D67's DGM/RQGM/Trellis sweep.
 
 **Dispatch policy.** Route by the seat's `description`. Delegate real units of
 work, not keystrokes — a subagent that needs three rounds of clarification cost
 more than doing it directly. Non-trivial changes go through `decision-guard`
 before they land; anything bound for a public remote also gets its
-comprehension pass. Run `archivist` at every
+comprehension pass, under the D15 gate (D17). Run `archivist` at every
 checkpoint, not only at session end.
 
-**Model tier is a throughput lever the CEO owns, not a spend lever.** What
-model tier actually trades is rate-limit headroom and judgment quality. `archivist` runs often and does mechanical writing, so it is
-sonnet; the other four carry judgment that is expensive to get wrong. Revisit
+**Model tier is a throughput lever the CEO owns, not a spend lever.** Marginal
+tokens are free; what model tier actually trades is rate-limit headroom and
+judgment quality. `archivist` runs often and does mechanical writing, so it is
+sonnet; the other five carry judgment that is expensive to get wrong. Revisit
 this when there is real usage data — right now it is a considered guess, not a
 measurement.
 
@@ -211,9 +325,22 @@ a *refusal* (as opposed to a build) is a separate, still-open limit, named
 in its own definition. Full history — three instances of the gap biting,
 one case where the insulation held usefully — in D17, D36(k), D53(e).
 
+**Seats may be cut by package as well as by judgment, staged at one (D76(e)).**
+The founder asked for one seat per folder; the CEO's first answer was no and
+argued against a proposal he had not made — replacing the judgment seats rather
+than layering under them. `tui-custodian` is the layered version, and only
+`tui/` has one. `memory/`, `persona/` and `cmd/` wait on evidence that a
+custodian finds what a package's builder would not have found anyway. **So far
+it does:** its first pass found the `Model.fit` suffix bug that four seats and
+a green race suite had walked past, at one commit. Its register — radical candor,
+the founder's word — is written into its definition as facts about its
+situation rather than as an adjective, because `standingInstruction`'s comment
+already records what handing a model a manner produces. Two more passes decide
+whether the other three folders get one.
+
 **Hires may eventually hire.** Tyler has authorized sub-teams at the CEO's
-discretion. Not yet exercised: four seats is already more org than a one-commit
-repo needs, and depth before the work demands it is the same mistake as D5.
+discretion. Not yet exercised: six seats is already more org than this repo
+needs, and depth before the work demands it is the same mistake as D5.
 
 ## Decisions in force
 
@@ -226,12 +353,15 @@ there. One line per decision below, title only, verified against that file's
 own headings on 2026-08-16 — D61's line carried backticks around `Prev` that
 the actual heading does not have, and is fixed above; every other entry
 through D66, including D47's line fixed at the 2026-08-14 check, matched.
-D69 and D71 through D77 are new this pass and match their headings here
-exactly. Two of them, D72 and D76, carry a shorter title than the one in the
-private record: each decided two things and only one of the two is published,
-so the title drops the conjunct that named the other. The numbering on the
-left is this list's own and is sequential; the `Dnn` on the right is the
-entry's real name, and the gaps in it are the entries not published:
+D78 and D79 are new this pass and match their headings here exactly
+(`grep -n '^## D7[89]' docs/DECISIONS.md`). Three entries, D61, D72 and
+D76, carry a shorter title than the one in the private record: each decided
+two things and only one of the two is published, so the title drops the
+conjunct that named the other. The numbering on the left is this list's own
+and is sequential; the `Dnn` on the right is the entry's real name, and the
+gaps in it are the entries not published — twenty-four of them as of D79,
+named and reasoned about in `docs/DECISIONS.md`'s own "After D79" note at
+the end of that file:
 
 1. The record does not forget; the view does. D1.
 2. Self-modification is composition from primitives. D2.
@@ -326,22 +456,28 @@ entry's real name, and the gaps in it are the entries not published:
 52. A seat that owns a package finds the bug the reviewers walked past. D76.
 53. D1 chose against the industry default without naming it, and the first
     outside team to try the other road kept most of D1 anyway. D77.
+54. The apparatus for keeping six paragraphs private had grown large enough
+    to generate its own secrets. D78.
+55. The cut left four files pointing at what it removed, the test D78 wrote
+    to falsify itself would have indicted a change that worked, and the
+    twenty-four old gaps stay gaps. D79.
+56. A prohibition on a technique was hiding a property nobody had stated,
+    and the property is the community's judgment rather than a person's.
+    D80.
 
 ## Working on the code
 
-Go, `go 1.25.4`, Bubble Tea v2 / Lip Gloss v2 (`charm.land/*`). Five packages
-(`go list ./...` — it said "four" and then listed five, wrong in the commit
-that wrote it, D47's own cut, and unnoticed for six commits):
-`memory/` (the record — `id.go` addresses a bit, `wire.go` persists a store
-and a view across a process boundary, D52), `tui/` (the surface — `save.go`
-is the continuous-save invariant, D53(a)), `persona/` (an ollama client),
-`cmd/tldr` (loads the record on start and keeps the file level with memory
-on every change — `record.go`, D53(a) — no longer "the program" in the thin
-sense it once was, and its `rejoin()` now repairs *both* views across two
-writers, not only the transcript, D66 — no arguments opens the surface,
-and `say`/`top`
-(`cli.go`) write and read the record from outside it, D51(e)/D56) and
-`cmd/seam` (the claims checker).
+Go, `go 1.25.4`, Bubble Tea v2 / Lip Gloss v2 (`charm.land/*`). Six packages
+(`go list ./...`): `memory/` (the record — `id.go` addresses a bit,
+`wire.go` persists a store and a view across a process boundary, D52),
+`tui/` (the surface — `save.go` is the continuous-save invariant, D53(a)),
+`persona/` (an ollama client), `cmd/tldr` (loads the record on start and
+keeps the file level with memory on every change — `record.go`, D53(a) —
+no longer "the program" in the thin sense it once was, and its `rejoin()`
+now repairs *both* views across two writers, not only the transcript, D66
+— no arguments opens the surface, and `say`/`top`
+(`cli.go`) write and read the record from outside it, D51(e)/D56),
+`cmd/seam` (the claims checker) and `cmd/cite` (the citation checker, D69).
 
 **Committing is the CEO's job and its hires', never the shareholder's** — he
 has said so directly, and five handoffs once claimed otherwise on no authority
@@ -368,11 +504,31 @@ declared `vacuous` is a finding rather than a failure are all explained there
 and nowhere else. Measured 2026-08-16: 17m35s, not the 2m30s
 previously recorded here — plan a checkpoint accordingly.
 
+**`go run ./cmd/cite` is the citation checker, not the claims checker**
+(D69): `seam` mutates code and asserts a test reddens; `cite` computes over
+cited third-party sources and asserts the record's own sentence states the
+result. `docs/CITATIONS.md` holds the blocks; read its header first, same
+rule as `docs/CLAIMS.md`'s. It needs a source cache the repo does not carry
+(`$TLDR_SOURCES`, else `~/.cache/tldreddit/sources`) and fails loud
+(`evidence-missing`) without one — a fresh clone must fetch and extract
+three PDFs per the manifest before it can run for real. Measured
+2026-08-16 with the cache filled: ~58ms (`time go run ./cmd/cite`). Runs
+in the commit hook on its record-side test alone
+(`TestEveryShippedCitationResolvesIntoTheRecord`, needs no cache); the
+source-side check stays a checkpoint step, not a hook, per D69(d).
+
 The file-by-file inventory — every package and test file, what it does, and
 which decision shaped it — is `docs/CODE.md`. *(Its line count used to be
 printed here and has been deleted rather than repaired: it went stale
 three times in one day and no reader ever decided anything differently
 for knowing it. D52(f)'s own ruling, applied to itself.)*
+**Cite code in this file by identifier and file, never by line number
+(D76(h)):** `frame.quoted` in `tui/render.go`, not `tui/render.go:138`. The
+number goes stale every time anything above it moves — it had drifted three
+times — and the identifier is what a reader greps anyway. `archivist`
+argued the CEO out of deleting these citations outright and this is its
+remedy; the one limit is that it holds only while the identifier is unique
+in its file, so check with `grep -c` before dropping a number.
 Open it
 before touching `memory/` or `tui/`, before making any claim
 about what is implemented, and before answering "does it work"; by the time
@@ -408,9 +564,9 @@ in `docs/DEBT.md`.
   unreconciled against the frozen table, not replaced — they answer a
   wall-clock schedule the table's grid does not sweep.
 - **No search, no jump, no query — decided closed, not merely unbuilt
-  (D58(a)).** There is a content-addressed caret (`Model.mark`,
-  `tui/tui.go:414`), a ranked surface on `ctrl+t` (`m.rank()`, called at
-  `tui/tui.go:706`, defined at `tui/tui.go:1384`), and `tldr top`
+  (D58(a)).** There is a content-addressed caret (`Model.mark` in
+  `tui/tui.go`), a ranked surface on `ctrl+t` (`m.rank()`, defined and called
+  in `tui/tui.go`), and `tldr top`
   (D51(e)/D56), which reads the whole record ranked from outside the
   surface — none of the three takes a query.
   `scope-adversary` argued for one; its own best counter-case, that a query
@@ -429,11 +585,15 @@ in `docs/DEBT.md`.
   both sizes before. D18(e)'s "a screen in rows" is now what the surface
   does. Two residuals, in `docs/DEBT.md` rather than repeated here: the view
   sits one row past the frame at heights ≥19, and six rows past at 60×14
-  where `coolFloor` binds instead of the screen.
+  where `coolFloor` binds instead of the screen. **D18(e) asked for two
+  budgets and both now exist (D75(d), D76(f)):** this one in rows for the
+  screen, and `Model.askBudget()` in tokens for the model, derived from
+  `Persona.Window` so that moving the window moves it. They are separate on
+  purpose and neither describes the other.
 - **The scar's word-bag summary — half closed, half open by decision
   (D60).** The human-facing half is built: the scar now quotes the
-  top-ranked absorbed bit in that speaker's own words (`frame.quoted`,
-  `tui/render.go:134`), not `topWords(c.Bag(), …)`. The model-facing half
+  top-ranked absorbed bit in that speaker's own words (`frame.quoted` in
+  `tui/render.go`), not `topWords(c.Bag(), …)`. The model-facing half
   stays a word index on purpose, not by omission — sending the same
   vote-selected quotation to the persona would wire D39(a)'s sycophancy
   pump into the fold note, proven by a failing test built to check exactly

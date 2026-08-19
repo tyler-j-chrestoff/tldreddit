@@ -33,3 +33,13 @@ secrets.json
 *.db
 *.db-shm
 *.db-wal
+
+# Mechanical backstop, not policy: paths that must never be copied into this
+# tree per docs/PUBLICATION.md. The charter's convention (never `cp` private
+# -> public) is what actually protects these; this list just makes a slip
+# harmless if the convention is ever forgotten.
+docs/PRIVATE.md
+docs/handoffs/
+docs/board.html
+docs/archive/
+.claude/craft/

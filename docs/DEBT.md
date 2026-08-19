@@ -46,6 +46,30 @@
   marks. Left open on the grounds that it reads as nested speech rather than as
   a broken assertion, and that no rule which removed it could leave the words
   verbatim, which is the whole contract of that row.
+
+- **`scope-adversary`'s insulation from the commercial thesis is notional,
+  and three entries reason from it as though it holds** (D72(b)). D53(e)
+  narrowed the insulation to "must ask when a brief entangles scope and
+  go-to-market"; D47 requires every brief to tell the seat to read `CLAUDE.md`
+  from disk, and `CLAUDE.md` carries the Business section. So the seat has held
+  the thesis on every compliant dispatch since D47. It disclosed this itself
+  rather than using it quietly. Three options, none chosen: a redacted charter
+  for this seat, moving Business out of `CLAUDE.md`, or retiring the insulation
+  as unenforceable. **Until one is chosen, do not cite D17, D36(k) or D53(e)
+  for the claim that this seat cannot see the thesis.** Re-check:
+  `grep -n 'Business' CLAUDE.md` and `grep -c 'read.*from disk'
+  .claude/agents/scope-adversary.md`.
+- **The twenty-entry backlog this bullet used to track no longer exists to
+  drain.** D78(c) replaced the per-entry ruling record with the one-file rule
+  (`docs/PRIVATE.md` never leaves, everything else publishes) and dissolved
+  the backlog rather than working through it — there is no longer a set of
+  decision entries "awaiting a withholding ruling." The historical gaps in
+  the public log's numbering are unchanged and remain announced in
+  `docs/PUBLICATION.md`'s "Entries not published" section. D70(g)'s rule —
+  that a withheld entry needs an independent adversarial re-derivation, not
+  just a read — still holds, but now applies only to whatever is still
+  withheld under the one-file rule, which as of D78 is `docs/PRIVATE.md`
+  content and nothing else.
 - **`decode` accepts a file with a fourth view stream, drops it, and says
   nothing** (`cmd/tldr/record.go`). The three streams are self-delimiting so a
   reader that has taken its three simply stops; there is no framing question it
@@ -354,9 +378,9 @@ New this checkpoint (D50):
   synth that is pleasant to be around is one a person checks less, and the
   vote (D4, D30) is exactly a human checking output they did not write. The
   rewritten `standingInstruction` (`tui/ask.go`) was chosen for register on a
-  three-arm live sample, never for its effect on vote rate, and no
-  instrument here could currently tell the two apart. No check exists and
-  none is proposed here. D50(l).
+  three-arm live sample (the commit that landed the rewrite carries the counts in its message), never
+  for its effect on vote rate, and no instrument here could currently tell
+  the two apart. No check exists and none is proposed here. D50(l).
 
 New this checkpoint (D52):
 
@@ -364,7 +388,8 @@ New this checkpoint (D52):
   session, not caused by it.** `tui/ask.go:780,788` and
   `tui/harness_test.go:112,118` build `strings.Builder` output with
   `b.WriteString(fmt.Sprintf(...))`/similar rather than `fmt.Fprintf(&b,
-  ...)` directly. Noted rather than fixed, since fixing it was not
+  ...)` directly. `tui/ask.go` has been untouched since the commit that rewrote `standingInstruction`, so this
+  predates this session; noted rather than fixed, since fixing it was not
   this checkpoint's unit.
 - **The stale-figure mechanization route from D52(f), not yet built.**
   Where a hand-transcribed figure has a real reader, the fix this session
@@ -507,12 +532,25 @@ New after the D53 checkpoint (found by a subagent, verified by the CEO):
   - **A bit behind a scar** is still one cut line inside its receipt
     unless somebody voted on it and it can be reached through `ctrl+t`.
     The caret walks the view; a receipt's rows are not in the view.
-  - **Line breaks are still dropped.** `saidWhole` wraps `oneLine`'s
-    collapsed text, so every word the record holds is on the screen and
-    its shape is not — a numbered list comes back as a run-on sentence.
-    Named in `saidWhole`'s doc and pinned, as a residual rather than a
-    bug, by `TestAnExpandedRowShowsEveryWordAndNotTheLineBreaks`. The cost
-    was measured before it was accepted and **the figure is deliberately
+  - **Line breaks are dropped — closed on the caret's row.** It read: a
+    numbered list comes back as a run-on sentence. `markdown` closed it
+    for a message written as a document and `wrapped` closes the rest —
+    the caret's block now keeps every line and every leading indent the
+    record holds and wraps only a line the terminal cannot fit, with the
+    continuation carrying that line's own indentation. Pinned by
+    `TestAnExpandedRowKeepsTheWordsAndTheLineBreaksTheRecordHolds`
+    (the renamed pin, now asserting the opposite),
+    `TestAWrappedLineCarriesItsOwnIndentAndLosesNoWords`,
+    `TestADeeplyIndentedLineKeepsItsOwnCharacters` and
+    `TestNoDrawnRowCarriesATab`.
+    **What stays open is every row that is not the caret's**: `said`,
+    the ranked previews and a receipt's rows have one row each, so a
+    break there is collapsed like any other cut, and a wrapped
+    continuation is told from a written line by the words rather than by
+    the shape.
+
+    The cost of the residual, while it stood, was measured before it was
+    accepted and **the figure is deliberately
     not written here**, under D52(f): four counts of
     `~/.local/state/tldreddit/record` taken the same day came back 14, 17,
     20 and 22 utterances, and every one was right when it was taken.
@@ -598,6 +636,32 @@ yet):
   can run the binary. Stated in `cmd/tldr/cli.go`; the honest boundary is that
   an utterance attributed wrongly is a lie a reader can catch by reading it,
   and a vote nobody cast is a lie nothing here can check.
+- **This unit created a publication obligation, and it should not be discovered
+  at push time.** Every Go file currently in the public tree cites only D1, D13
+  and D18, and the public `docs/DECISIONS.md` stops at D19 (both measured, with
+  the command below). The three new files cite D1, D4, D14, D30, D39(a), D40,
+  D51(d)/(e)/(f), D52(j) and D54(b) — nine of those eleven unpublished — and
+  `cmd/tldr/cli.go`'s header paraphrases D51(d)'s launch positioning in prose
+  and quotes D52(j) verbatim. `cmd/tldr/main.go` adds D50. *`decision-guard`'s
+  report also listed D5, D49 and D53(a) for this unit. Re-derived: D5 is in
+  `tui/tui.go` and predates this change, and **D49 and D53 appear in no Go file
+  in this repository at all** — `grep -rn "D49\|D53" --include=*.go .` returns
+  nothing. Corrected here rather than repeated; the list is shorter than the
+  report said and the obligation is not.* So publishing `cmd/tldr`'s
+  verbs means either publishing a large block of decisions that have never
+  cleared the D15 gate, or shipping source whose comments cite a record a
+  reader cannot open. Found by `decision-guard` during review of this unit.
+  **No action taken here on purpose, and the mechanism this described has
+  since changed:** at the time, `docs/PUBLICATION.md` held a per-entry
+  ruling and the withholding call (D20(a)) was made entry by entry; D78
+  replaced both with the one-file rule (`docs/PRIVATE.md` never leaves,
+  everything else publishes), so the live question for these decisions is no
+  longer "does each one clear a per-entry gate" but whether any of them mixes
+  in `docs/PRIVATE.md`-class content that needs splitting out before
+  publishing. The public tree is still not touched by this bullet. Re-check
+  the premise rather than trusting this bullet:
+  `grep -rho "D[0-9]\+" /home/tyler/code/tldreddit-public --include=*.go | sort -u`
+  beside the same command over this tree's `cmd/` and `tui/`.
 - **The surface draws a control token as ordinary text, and whether it should is
   undecided.** `persona.Escape` neutralises a control marker on the way *out* to
   a model; nothing touches what is drawn. So the qwen3.5 reply that ends
@@ -736,6 +800,28 @@ New this checkpoint (the fold budget in rows — no decision number yet):
   conservative direction by up to sixty times. Re-check: `askCeiling`'s doc
   carries the method, and `curl -s localhost:11434/api/show -d '{"model":"…"}'`
   the declared figures.
+
+  **Closed 2026-08-17, and `askCeiling` no longer exists.** D75 put `num_ctx` on
+  the wire, which met the precondition that constant's own comment named, and
+  the budget is now `Model.askBudget` — **half of `persona.Persona.Window`,
+  denominated in tokens**, so 16,384 against today's default rather than 60 bits
+  against an accident. What prices a turn is `tokensIn`, a per-rune structural
+  estimate whose error was measured against a live ollama 0.17.7 by
+  `prompt_eval_count` over nine materials and two tokenizers: **estimate over
+  measurement lands between 0.77 and 1.33**, reading high on typed prose and low
+  on pasted density. The margin is the half that is not spent, and the reason it
+  is a half rather than a subtraction is in `askBudget`'s doc. Held by
+  `TestWhatThePersonaIsSentIsCappedByTheWindowAndNotByTheScreen`,
+  `TestAPersonaThatNamesNoWindowIsBudgetedTheDefaultOne`,
+  `TestTheNewestTurnIsSentEvenWhenItAloneOverrunsTheBudget` and
+  `TestTheTokenEstimateChargesDenseMaterialMoreThanProse`; the old test named
+  above is gone, and it went red against the new behaviour before it was
+  replaced.
+
+  *What is open in its place, and it is smaller:* the zero-window rule now lives
+  in two packages, because `persona.Persona.window()` is unexported — `tui`
+  restates "zero means `DefaultWindow`" and one test is all that keeps the two
+  copies honest. Exporting it in `persona/` would delete the duplication.
 - **A record showed one clock live and another after a restart — closed, and it
   was this seat's bug rather than `memory/`'s.** Found by driving the real
   binary: the same bits read `19:47` in the session that wrote them and `01:47`
@@ -971,8 +1057,8 @@ not.
   (35 bits): **7 of 29 said bits, 24%, came in through `tldr say`**, and
   `f6d65254`'s `Prev` is `a0ab4364`, a greeting, rather than `d9ae9a94`, the
   claim it corrects. Not *unrelated* — an earlier draft of this entry said so
-  and overstated it: `a0ab4364` is about the same subject, in its own text.
-  What the edge fails to be is a reply to
+  and overstated it: `a0ab4364` is about the same subject, naming the DeltaDB
+  and Zed material in its own text. What the edge fails to be is a reply to
   the thing the correction corrects, which is the whole of the finding and
   does not need the stronger word. The screen's response is a *narrowing of
   what the tie is allowed to mean* — "the row below is keeping this row out of
@@ -1051,6 +1137,46 @@ not.
   widths (`tui/ask.go:909-915`) would need re-measuring against the new
   string's length, not copied from the old one. Re-check:
   `grep -n '"nothing was recorded"' tui/ask.go`.
+- **Nine `file:line` citations in synced files resolve correctly only because
+  the code is byte-identical across the two trees.** A tenth, the one this
+  checkpoint fixed (`docs/CLAIMS.md:676`, an `awk 'NR<=N'` line-offset
+  settler), answered `## D39` in the private tree and `## D19` in the public
+  one on the same command — found because D62's own citation history was the
+  subject of the sentence it sat in. `principal-go-engineer` swept the rest:
+  twelve `file:line` citations total in files that sync whole, nine survive
+  naming a Go file at a specific line, and every one of the nine is correct
+  in both trees for the same reason — the `.go` files they cite are
+  byte-identical, not because the citation is content-anchored. If a future
+  D15 gate finding is ever fixed by editing the *public* copy of a `.go` file
+  rather than the private one and re-syncing, all nine become wrong in one
+  tree silently, with no paragraph anywhere warning a reader that a citation
+  crossed a boundary it depends on. The standing protection is the
+  byte-identical invariant itself (`docs/PUBLICATION.md`'s "code syncs one
+  way" rule), not anything in the nine citations — which is exactly why a
+  gate finding must never be repaired by editing public code directly.
+  Enumerated in `docs/CLAIMS.md` and `docs/CODE.md`; not individually listed
+  here because the risk is the class, not the instances. Re-check:
+  `diff -r /home/tyler/code/tldreddit/tui /home/tyler/code/tldreddit-public/tui`
+  and the same for `memory`, `cmd`, `persona` — clean today, and the day one
+  of them is not is the day this item stops being theoretical.
+- **Roughly twenty-one citations to `.claude/craft/*` now point at files the
+  public tree does not carry.** D62(h) narrowed D40's craft-record
+  publication default to a fresh per-checkpoint sweep rather than
+  publish-by-default, and neither craft record shipped this checkpoint. The
+  citations were not written with that in mind: `.claude/agents/
+  principal-go-engineer.md` and `.claude/agents/tui-design-engineer.md` —
+  both published — open by telling a reader "Your craft record:
+  `.claude/craft/<seat>.md`. Read it first," and `docs/CODE.md` and
+  `docs/DEBT.md` (also published) add bare path citations, four of them
+  carrying line ranges into a file that, in the public tree, does not exist
+  at all. `decision-guard`'s second D15 pass counted them directly
+  (`grep -rn '\.claude/craft'`) and ruled the class comprehension, not
+  confidentiality — a dangling reference discloses nothing, it just resolves
+  to nothing for a stranger — and accepted the cost rather than editing five
+  files to patch it. Recorded here so the next session does not rediscover
+  it as new. Re-check: `grep -rn '\.claude/craft' docs/ .claude/agents/`
+  against a checkout of `/home/tyler/code/tldreddit-public` and count the
+  misses.
 - **D18 ruled that forum is the base abstraction. There is no forum in the
   code, and there never has been.** Verified:
   `grep -rn "forum" --include='*.go' .` returns **five** hits, not six —
@@ -1190,3 +1316,155 @@ not.
   `docs/CODE.md` asserted the opposite for a checkpoint, on the reading that a
   row "keeping its place" keeps its standing — it keeps the *earlier* position,
   which is the losing one.
+
+- **`docs/CODE.md` describes a file that was never committed, and a guard
+  flag that appears nowhere in the tree.** `docs/CODE.md:906-908` describes
+  `zz_probe_test.go` as "a separate, explicitly throwaway probe (guarded by
+  `PROBE=1`) over the same rows" in `tui/`. Neither exists: `git log --all
+  --diff-filter=A -- '*zz_probe*'` returns nothing (the file was never added
+  in any commit, on any branch), `find . -iname '*zz_probe*'` finds nothing
+  on disk, and `grep -rnw PROBE --include='*.go' .` matches nothing in the
+  module. The inventory names a mechanism that has never existed, in either
+  sense — not deleted-and-stale, invented and never built.
+
+  This is the **first confirmed instance** of the `docs/CODE.md` ↔ code
+  drift `CLAUDE.md`'s "Working on the code" section has been predicting in
+  the abstract ("goes stale the moment code changes without a matching edit
+  there — nothing enforces that yet"). It was found by reading past the
+  noise of a one-command check with an 11:1 false-positive rate (it flagged
+  stdlib symbols and missed `const`-block declarations), not by the check
+  itself catching it directly.
+
+  **Why the standing presence check (`CLAUDE.md`'s inventory sweep, also run
+  in `archivist`'s checkpoint routine) cannot see this class at all:** that
+  check only asserts every `.go` file currently in the tree is *named
+  somewhere* in `docs/CODE.md` — a one-directional existence test. It has no
+  inverse: nothing asserts that a file `docs/CODE.md` names, or a mechanism
+  it describes, actually exists in the tree. A description of a nonexistent
+  file passes the same sweep a true description does. Not proposing a
+  checker for this — D69 just ruled on when an instrument earns a work unit,
+  and the demand here is a single found instance, not a named recurring
+  failure.
+
+- **Assistant markdown is rendered in the caret's block only, and four things
+  about it are open.** `tui/markdown.go` (new this session) draws a bit whose
+  text carries a block-level mark — a fence, an ATX heading, or a list item —
+  as a document: heading rows, bullets, an indented and syntax-coloured code
+  block. Everything else takes `wrapped`, which keeps the message's own
+  lines and indentation — it was the collapsed wrap until the pass after
+  D73, and see the closed line-breaks item above. Each item below is a real
+  cost, all measured, none of them fixed:
+
+  - *(Closed.)* **A wrapped line inside a fenced block used to lose that
+    block's indent.** Glamour indents a code block and then wraps at the full
+    width, so a continuation landed at column zero, level with the prose —
+    measured at 52 columns on the real binary. Closed by `prewrapped`, which
+    breaks the long lines *before* glamour sees them and opens each
+    continuation with `… ` at the code column. The break is at the column
+    rather than at a word, so the rows concatenate back to exactly what the
+    speaker wrote (`ansi.Wrap` eats the space it breaks at);
+    `TestAWrappedCodeLineStaysInsideItsBlock` and
+    `TestAWrappedCodeLineIsExactlyReversible` hold the two halves. **One
+    residual, not fixed:** a continuation is lexed as a fresh line, so a
+    broken comment loses its comment colour on the continuation. Structure is
+    unaffected and it is invisible without colour.
+
+  - **The depth of a heading is not drawn.** Headings are capitals with a
+    blank row under them and no hashes, which is character-carried and so
+    survives the fade — but capitals cannot carry a count of hashes. Indenting
+    each level's body was drawn and rejected: it spends two columns of every
+    prose line on this surface's scarcest dimension, and a two-column relative
+    indent is already the fade's step, so it would put two meanings in one
+    channel one row apart. The record keeps the depth.
+
+  - **The one-row form of a document is markdown source.** `said`/`oneLine`
+    are untouched by design — `oneLine` answers "what does the record hold"
+    and the reachability tests read it — so every transcript row the caret is
+    *not* on, every ranked-row preview, and every receipt row shows
+    `### Reversing a slice in place Two things matter here: - it swaps from
+    **both en…`. That is honest and it is also most of what a person sees.
+    The shape that would close it is a display-only lede (the bit's first
+    paragraph, skipping a leading fence) used by `said` alone, which is the
+    same object as the scar-quotation item below.
+
+  - **A scar quoting a code-bearing bit will read as garbage, and it is
+    unfixed on purpose.** `frame.quoted` picks the top-ranked absorbed bit
+    and `frame.quotation` renders it through `said`, so a fold whose winner
+    is a fenced reply quotes ```` ```go package main import "fmt" … ````
+    inside quotation marks — including the `"` from `import "fmt"`, which
+    breaks the one assertion those two characters make. Held rather than
+    fixed: the CEO ruled mid-session that this probably dissolves if a reply
+    is segmented into several bits, because a scar could then quote the prose
+    bit and leave the code bit alone. If segmentation does not happen, the
+    fix is `opening(b)` — the bit's first paragraph, refusing when that
+    paragraph is a fence opener — used by `frame.quotation` only, which
+    changes nothing for any bit without a blank line in it.
+
+  - *(Closed, by something that was not about it.)* **Glamour's padding trim
+    had no mutation.** It was provably inert when written — both callers ask
+    for a room that is the width minus their own lead, so a padded line landed
+    flush, and removing it produced a byte-identical frame. `prewrapped`, added
+    for the indent defect above, made it live: a code line broken to fit is
+    only honest if the rows reassemble into what the speaker wrote, and the
+    padding sits between them. Removing the trim now reddens
+    `TestAWrappedCodeLineIsExactlyReversible`.
+
+- **A code block in a folded window takes over the persona's word index.**
+  `memory/cool.go`'s `words` splits on anything that is not a letter or a
+  number, so identifiers and loop variables enter the bag with the frequency
+  code gives them. Measured over a ten-bit fold window with one fenced Go
+  reply in it against the same window without: distinct words 49 → 77,
+  tokens of two characters or fewer 9 → 18, and the twelve words the persona
+  is told go from `backfill, migration, columns, schema, dump, now,
+  acknowledged, backfilled, uploading, dropping, standing, starting` to
+  **`j, s, 1, t, migration, backfill, columns, schema, dump, now, 0,
+  acknowledged`** — the four most prominent slots spent on a loop index, a
+  slice, a literal and a type parameter.
+
+  This is D60's model-facing half degrading, and it degrades further the more
+  code a record carries. **Two fixes, on opposite sides of a one-way door.**
+  In `memory/`: change `isSep` or `words`, which moves `Compaction.Bag`,
+  which reaches `ID(cold)` — every scar already on disk re-addresses, so it
+  is a D26/D33-class decision and not a tidy-up. In `tui/`: `topWords`
+  already skips `filler`, and skipping single- and double-character tokens
+  there costs one line, moves no address, and fixes the persona's index and
+  the display alike. The second is inside `tui-design-engineer`'s ownership
+  and is *not* built — it changes what the persona is told, which is D39(a)
+  and D60 territory, and the CEO should rank it rather than have it arrive
+  in a rendering unit. Re-check as a procedure: build a ten-bit window with
+  and without a fenced reply in it, fold, and print
+  `topWords(c.Bag(), personaWords)` for each.
+
+- **The module's `go` line moved from 1.25.4 to 1.25.8, because glamour
+  requires it.** `charm.land/glamour/v2 v2.0.1` declares `go 1.25.8`, so the
+  whole module bumps; `.github/workflows/commit-gate.yml` reads
+  `go-version-file: go.mod`, so CI follows automatically. And the binary
+  grew: `go build ./cmd/tldr` is **12,170,076 bytes before and 22,266,246
+  after, +10,096,170 (+83%)**, almost all of it chroma's lexer registry,
+  which glamour imports wholesale and which nothing here can trim without
+  forking. Named because it is the largest single dependency cost this
+  project has taken and nobody would find it otherwise.
+
+- **D79(d)'s clean-cut counter: how many consecutive cuts have step 4 run
+  against them (a read of the produced tree, by a seat that did not write
+  the cut) and come back with no cross-file aftermath.** Count stands at
+  **0 consecutive clean**, because the only cut checked so far was not
+  clean: D78's cut produced four cross-file defects, all four named in
+  D79(a) — plus two unsourced figures, D79(b) and (c), which are a different
+  class and are not counted here. The next cut checked that comes back with no aftermath
+  makes it 1; a second in a row makes it 2, which reverses D79(d) and
+  retires the extra pass as ceremony. A dirty result at any point resets
+  the count to 0.
+
+- **`go run ./cmd/cite`'s source-side check has not actually run on this
+  machine this checkpoint.** `$TLDR_SOURCES` is unset and
+  `~/.cache/tldreddit/sources` does not exist here, so every citation
+  reports `evidence-missing`: `go run ./cmd/cite` → `13 citations, 13
+  evidence-missing`, exit status 2. This is the tool failing loud as
+  designed (D69) rather than a defect in the citations themselves — the
+  record-side test the commit hook actually runs
+  (`TestEveryShippedCitationResolvesIntoTheRecord`) needs no cache and is
+  unaffected. Recorded so a future session does not read a past "measured"
+  cite figure and assume the cache is filled here: it never has been on
+  this machine. Filling it means fetching and extracting three PDFs per
+  the manifest in `docs/CITATIONS.md`'s header.
