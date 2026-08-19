@@ -1,5 +1,17 @@
 # Open debt
 
+- **A known-false claim is in the tree: `costOf`'s comment in `tui/tui.go`
+  says the orphan-answer cap costs nothing, and it does not.** Around
+  `tui/tui.go:2073-2075` the comment reads "**0.0% of frames opening on an
+  orphaned answer** … Both are 0.0% today," concluding the cap is free.
+  Running `TestNoBitIsChargedMoreThanHalfAScreen` directly gives **38 folds,
+  18 opened on an answer whose question had gone** — the same 18/38 figure
+  D85's entry above measures independently. The test prints the number
+  instead of asserting it, so it has been green while contradicting its own
+  header. Not fixed here — it belongs to whichever seat owns `tui/tui.go`
+  next, and the fix is a rewrite of the comment's conclusion, not the code
+  under it, since D85 already ruled the 18/38 figure acceptable. Re-check:
+  `go test ./tui/ -run TestNoBitIsChargedMoreThanHalfAScreen -v`.
 - **A paste large enough to matter overran `num_ctx` in silence — closed, and
   the interesting part is that it could not be reached from the keyboard.** D83
   measured `Model.fit` and left the interface question open: what does the
@@ -111,25 +123,35 @@
   passes and still describes `fit`; what changed is that the surface no longer
   walks into it.
 - **A fold can still open the view on an answer whose question it took, once a
-  message can be half a screen — and closing it needs a ruling in `memory/`.**
-  The budget counts rows now (`Model.rows`), which is what the unit mismatch
-  needed; the residual is that D58's move of the cut back to the last thing the
-  human said cannot always happen any more. The cause is structural rather than a
-  bug: a record with documents in it is large in *rows* and small in *bits*, D32
-  requires the fold's window to be at least two bits, and those two together
-  leave `keepFrom` no range to move the cut in. Measured at 100x30 with a fenced
-  36-row answer every sixth bit: **18 of 38 folds** open on an answer whose
-  question has gone, against 0 before; at every other bit, 58 of 116. It is a
-  legibility defect and not a reachability one — the scar directly above is the
-  receipt and `ctrl+u` opens it, which is D58(g)'s own ruling on the same shape.
+  message can be half a screen — ruled on and accepted, per D85, rather than
+  left open.** The budget counts rows now (`Model.rows`), which is what the
+  unit mismatch needed; the residual is that D58's move of the cut back to the
+  last thing the human said cannot always happen any more. The cause is
+  structural rather than a bug: a record with documents in it is large in
+  *rows* and small in *bits*, D32 requires the fold's window to be at least
+  two bits, and those two together leave `keepFrom` no range to move the cut
+  in. Measured at 100x30 with a fenced 36-row answer every sixth bit: **18 of
+  38 folds** open on an answer whose question has gone, against 0 before; at
+  every other bit, 58 of 116. It is a legibility defect and not a
+  reachability one — the scar directly above is the receipt and `ctrl+u`
+  opens it, which is D58(g)'s own ruling on the same shape.
 
-  **What would close it is D32's size rule, which is not this seat's.** D32
-  refuses to cool a run of one on the grounds that folding a single bit into a
-  scar standing for one bit buys nothing. That stops being true when the one bit
-  is half a screen: replacing eleven rows with one is exactly what the fold is
-  for. Allowing a run of one *when the run costs more than a row* would give
-  `keepFrom` its range back. It reaches a content address and belongs to
-  `principal-go-engineer`.
+  **D32's size rule was investigated for a narrowing and refused (D85).**
+  Allowing a run of one to cool when it costs more than a row was built and
+  measured against `memory/`: zero lone-bit runs cooled in 120 writes, orphan
+  count unmoved. The reason: after any fold `View.Fold` rebuilds with the
+  scar at the front, so the narrowing's only newly-admitted run is a lone
+  scar, and cooling a scar into a scar buys nothing at any price. **The
+  defect is in `tui/`, not `memory/`.** A downward search in
+  `keepFrom`/`keepAhead` was also built and measured, taking orphans to zero
+  (18/37 → 0/28 and 58/116 → 0/59) — but it reddens
+  `TestTheBudgetNeverFallsBelowWhatThisSurfaceAlwaysFoldedAt` and
+  `TestTheFoldsWindowIsNeverASingleBit`, so it did not land. D85 chose the
+  floor over the search: the orphan has a working receipt (the scar above it,
+  `ctrl+u`), and giving up the floor brings back `held` frames and an
+  unbounded view. Standing collapse condition, same shape as D58(a)'s: an
+  unprompted report from Tyler, from real use, that he could not tell what an
+  answer was answering.
 
   Two figures that are not residuals and are recorded so nobody re-derives them:
   the fold rate rises with the share of the conversation that is documents — 22

@@ -6962,3 +6962,244 @@ or a window small enough that ordinary paragraphs reach it. Either would make
 a person ever wants the conversation sent alongside an oversized paste more than
 they want the paste whole; nothing has asked for that, and D80's rule applies —
 that would be a property to state, not a technique to prefer.
+
+---
+
+## D84 — The ask refusal, and D83 measured a failure the program could not reach
+
+**2026-08-19**
+
+**Status:** tested — implemented in `tui/ask.go`, committed at `b20d7ea`;
+exercised in a real terminal (recipe below) and pinned by
+`TestAnAskTooLargeForTheWindowIsRecordedAndNotAsked`,
+`TestAnAskTheWindowCanStillHoldIsAsked`,
+`TestADraftTooLargeToPasteIsRefusedWhole`,
+`TestAPasteWithMoreLinesThanTheComposerHoldsIsRefusedWhole`,
+`TestTheRefusalsTwoNumbersAreInOneUnit`,
+`TestAKeyTheComposerCannotHoldIsSaidRatherThanDropped`,
+`TestAPasteTheComposerCanHoldLandsWhole`.
+
+There is one ask path, `send()`, and it is gated on the composer, whose
+`CharLimit` was a bare `4000` in a file where every other constant carries an
+argument. A full draft of English cost an estimated 2,778 tokens against a
+32,768-token window, so `Model.fit`'s doc, `Model.askBudget`'s doc and
+`docs/DEBT.md` all described a live overrun that nothing typed at the keyboard
+could reach. **The arithmetic in D83 was right and the reachability was never
+checked** — the same shape as D82's finding that a guard's green meant nothing
+because its case had never run.
+
+The worse defect was underneath: a 216,000-rune paste left a 4,000-rune draft
+silently, and that draft became a bit. The record's copy of a person's file
+was a cut of it with nothing marking the cut — D1's failure one layer before
+D83's.
+
+Both are closed. An ask whose newest turn alone exceeds the persona's window
+is recorded and not sent (`Model.tooLargeToAsk`, `Model.unasked` in
+`tui/ask.go`), with an antecedent in the footer before enter and a notice
+carrying both numbers after it — the words stay on the record and only the
+asking stops. `draftLimit = 2 * persona.DefaultWindow` is written as the rule
+rather than the number, so the composer can always hold a draft the model
+cannot. A paste the composer cannot hold whole is refused whole, and so is a
+keystroke at the ceiling.
+
+**Four stops from review, each re-derived and verified directly rather than
+taken on report.** `bubbles/v2`'s `textarea` carries `maxLines = 10000`,
+enforced independently of `CharLimit` — a paste over 10,000 lines was cut by
+the library and accepted with no notice (40,000 runes offered, 19,999 kept).
+The refusal notice compared a rune count against `textarea.Length()`, which is
+uniseg display width, so a 40,000-rune CJK paste was refused with "there is
+room for 65,536 here" while the two numbers it printed said it should have
+fit. `draftLimit`'s benchmark table pointed at a re-check loop that did not
+exist in the package. And `docs/DEBT.md`'s recipe expected 65,496 bytes on
+disk from a paste supposedly refused whole — a refused paste writes no record
+file at all. All four are closed in the tree at `b20d7ea`; see
+`docs/DEBT.md`'s composer entry for the measurements.
+
+**Two figures dropped from the build brief and re-derived rather than
+carried.** The footer antecedent is whole from width 22 (swept 18–70), not
+"about 28" beside a contradicting reading at 31. And 2,778 tokens is the prose
+reading, not a ceiling — the densest 4,000 runes the composer can hold are
+4,000 tokens of digits or 8,000 of emoji, still clearing the window about
+fourfold.
+
+**Two new defects, recorded and not fixed, both in `docs/DEBT.md`.** Filling
+the composer one key at a time is quadratic, and raising the ceiling made it
+worse where bracketed paste is off — 70,000 characters were still arriving
+seventeen minutes later in a tmux session, a regression this commit knowingly
+accepts because silent data loss is worse than slow. And a non-bracketed
+paste of a file with newlines does not fill the composer, it *sends* —
+newlines arrive as enter presses, so a 216 KB log became 71 bits and 71
+requests to the model. No guard built here touches that path; it is the top
+open defect on this surface.
+
+**What would change this.** The refusal threshold reverses if a person ever
+wants the conversation sent alongside an oversized paste more than they want
+the paste whole; nothing has asked for that. The quadratic-fill defect closes
+when the composer stops walking its whole draft per keystroke, which is a
+separate unit. The non-bracketed-paste-as-keystrokes defect needs its own fix
+and is not touched by anything in this entry.
+
+## D85 — D32's narrowing is refused, and the defect is in `tui/`
+
+**2026-08-19**
+
+**Status:** tested — the full narrowing (allowing a run of one to cool when
+it costs more than a row, per `docs/DEBT.md`'s open item under D83) was built
+and measured: zero lone-bit runs cooled in 120 writes, orphan count unmoved.
+Nothing from it landed; `memory/` and `cmd/` build clean at the commit this
+was investigated against. The alternative that does move the number —
+a downward search in `keepFrom`/`keepAhead` (`tui/`) — was also built and
+measured, taking orphans from 18/37 to 0/28 and 58/116 to 0/59, and reddens
+`TestTheBudgetNeverFallsBelowWhatThisSurfaceAlwaysFoldedAt` and
+`TestTheFoldsWindowIsNeverASingleBit`.
+
+Commissioned as an investigation into whether D32's size rule
+(`memory/`: a run of one does not cool, on the grounds that folding a single
+bit into a scar standing for one bit buys nothing) should be narrowed to admit
+a lone bit when that bit costs more than a row — the candidate close named in
+`docs/DEBT.md` under D83's fold-legibility item. It came back a no, and the
+reasoning is accepted: after any fold `View.Fold` rebuilds with the scar at
+the front, so the only run the narrowing would newly admit is a lone scar —
+and cooling a scar into a scar buys nothing at any price. The real defect is
+in `keepFrom`/`keepAhead` in `tui/`, not in `memory/`'s size rule.
+
+**Decided, not left open: the half-a-screen floor stays and the orphan is
+accepted.** The orphan (a fold opening on an answer whose question has
+scrolled off) is a legibility defect with a working receipt — the scar sits
+directly above it and `ctrl+u` opens it, which is D58(g)'s own ruling on the
+same shape — whereas giving up the floor brings back `held` frames and an
+unbounded view.
+
+**What would change this, mirroring the query decision's shape (D58(a)):** if
+Tyler reports, unprompted, from real use, that he could not tell what an
+answer was answering, this reverses.
+
+## D86 — Concurrent writing seats get isolated worktrees
+
+**2026-08-19**
+
+**Status:** asserted — a dispatch practice, not a code change. The incident
+that prompted it happened and nothing was lost, but nothing guaranteed that,
+and no test can pin a dispatch discipline.
+
+Two seats ran against one working tree in the same session. One ran
+`git stash -u` and `git checkout -- tui/tui.go` over another live seat's
+uncommitted work. **This was a dispatch error, mine, not the seat's** — it
+followed the instruction it was given. D29 says stage by explicit path, never
+a wildcard, and has no companion rule for the verbs that take the whole tree
+at once regardless of what is staged.
+
+Two rulings. Concurrent writing seats are dispatched with worktree isolation
+(`git worktree add`), which was exercised correctly later the same session
+for a separate receipt-scoping unit. And: **no whole-tree verb —
+`git stash`, `git checkout --`, `git clean`, `git reset` — while another seat
+holds uncommitted work**, whether or not the paths involved are believed to
+be disjoint.
+
+**What would change this.** Nothing yet — the cost of worktree isolation is
+low and the failure mode it prevents (destroying another seat's uncommitted
+work with no error and no receipt) is exactly this product's own, so there is
+no evidence pointing toward relaxing it.
+
+## D87 — Receipt-and-verify: scope decided, and the OpenTelemetry proposal reversed
+
+**2026-08-19**
+
+**Status:** asserted — a scoping decision for a unit not yet built, plus one
+tested claim: `Store.Address()`'s cost, `docs/DEBT.md`/D83's own citation,
+holds at 28ms over 100,000 bits (D58's own measurement, re-cited here rather
+than re-run).
+
+**Record the reversal explicitly, and as mine.** I proposed proposing a
+payload for OpenTelemetry's `gen_ai.conversation.compacted`, having verified
+first-hand that it is a boolean at Development stability with no count,
+content, hash or reason field, and that the spec says not to set it false.
+`scope-adversary` argued three things: semantic conventions codify existing
+practice rather than create it; landing one needs SIG sponsorship and
+implementations we do not have; and Development stability means "unfinished,
+do not depend on it," not an unclaimed hole waiting for a proposal. **The
+argument is better than mine and I reversed. Not on pressure or tone — on the
+argument**, per this file's own standing rule under "Who is running this."
+
+**Scope decided for the build, when it is taken up.**
+
+- A three-valued verdict: verified / verified-with-the-record-incomplete /
+  refused. Content addressing alone catches an *edited* bit; only an
+  edge-closure walk over `Prev` catches a *removed* one, so the verdict needs
+  both.
+- Selective redaction is in from the start (roughly 20 lines): ship bytes for
+  what should be independently checkable and addresses alone for the rest.
+- **No Merkle tree.** `Store.Address()` already costs 28ms over 100,000 bits
+  and a tree would buy only inclusion proofs, which nobody has asked for.
+- The external-transcript adapter (verifying a conversation that did not
+  originate in this record) is a **separate unit**, needing a new `Payload`
+  kind under D26, not a stretch goal folded into the first build.
+- The artifact format waits on one fresh search of in-toto and Sigstore
+  envelope formats before it is chosen, because the format is the one part
+  of this that cannot change later without breaking every artifact already
+  issued.
+
+**The honest ceiling, stated because I used looser language for it earlier in
+the session.** `verify` proves nobody edited the record after the fact. It
+proves nothing about whether it was true when written. Nothing here is
+signed; a `Handle` is a self-asserted string; `At` is caller-supplied; and the
+same conversation recorded twice — once with a turn simply never written —
+verifies clean both times. Also record, as a caution against a cheap false
+positive: `Store.Address()` already exists and hashes sorted map keys without
+re-deriving from bytes, so a verifier that computes it on a store it did not
+itself load from bytes has checked nothing.
+
+**What would change this.** The scope reverses if the external-transcript
+adapter turns out to be needed on day one rather than separable; the "no
+Merkle tree" ruling reverses if a future consumer needs an inclusion proof
+without the whole store, which nothing does today.
+
+## D88 — The merge surface is the fold, not the transcript
+
+**2026-08-19**
+
+**Status:** asserted — a design result from a founder conversation, recorded
+with its reasoning. Not a commitment to build; nothing here has code.
+
+You cannot merge utterances: two agents who heard different things both
+genuinely heard what they heard, so there is nothing to reconcile at that
+layer. Only *derived* objects can contradict, and the scar (`Compaction`,
+`memory/cool.go`) is this record's only derived object.
+
+**Consequences, reasoned through and not yet built.** A scar's `Prev` is its
+whole window (D13), so two scars whose `Prev` sets intersect are folds over
+shared evidence, and divergent content between them is a candidate
+contradiction found by set intersection alone — no semantics required to
+find the candidate, only to adjudicate it. Contradiction becomes an
+*authored edge* rather than something the record detects on its own,
+expressible as a new `Payload` kind under D26. Detection is lazy, evaluated
+at merge time, the way git's is — not swept eagerly.
+
+**Three elements of a familiar toolset earn a place in this design, and no
+more.** Branch/merge, mapped onto nested agent memories (named already in
+`CLAUDE.md`'s opening paragraph, unsolved as a mechanism). Pull request,
+because a proposal is not acceptance and a refusal needs an artifact of its
+own rather than silently vanishing. Issue, but only as the container for an
+authored contradiction edge, not as a general ticket. Labels, milestones,
+reviewers and CI are process furniture with no counterpart in what the
+record needs to express, and get no seat.
+
+**The standing brake, stated as a rule for anything proposed under this
+design later:** each element earns entry by naming something the record
+currently cannot express, not by precedent from where it came from. The cost
+floor is real and should discourage casualness — one contradiction with one
+raiser, three proposers and a triaging owner is six inference calls at
+minimum.
+
+**What stops an agent from simply ignoring every contradiction it is shown.**
+A refusal **forks** rather than ends: both branches stay live and
+addressable, and a human vote decides which gets read. In this design, the
+**human vote is the only signal an agent cannot manufacture** — every
+structural measure (citation count, recursive prestige) is gameable by
+spawning more agents, and spawning is free here.
+
+**What would change this.** This stays a design result rather than a build
+until a named failure demands the unit — the same bar every instrument in
+this project is held to. The nested-memory branch/merge mapping is the piece
+most likely to surface that demand, since it is named as unsolved rather than
+designed.

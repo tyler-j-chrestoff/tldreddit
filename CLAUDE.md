@@ -355,8 +355,8 @@ there. One line per decision below, title only, verified against that file's
 own headings on 2026-08-16 — D61's line carried backticks around `Prev` that
 the actual heading does not have, and is fixed above; every other entry
 through D66, including D47's line fixed at the 2026-08-14 check, matched.
-D78 through D83 are new since that check and match their headings here
-exactly (`grep -n '^## D8[0-3]' docs/DECISIONS.md`). Three entries, D61, D72
+D78 through D88 are new since that check and match their headings here
+exactly (`grep -n '^## D8[0-8]' docs/DECISIONS.md`). Three entries, D61, D72
 and D76, carry a shorter title than the one in the private record: each
 decided two things and only one of the two is published, so the title drops
 the conjunct that named the other. The numbering on the left is this list's
@@ -475,10 +475,23 @@ D79, unchanged by D80 and D81, named and reasoned about in
 59. The token budget is a per-turn admission threshold, not a bound on the
     request, and on every conversation that is not a paste its value changes
     nothing at all. D83.
+60. An ask the window cannot hold is recorded and not sent, and the composer
+    stops cutting an oversized paste in silence. D84.
+61. D32's narrowing is refused — the fold-legibility defect lives in `tui/`,
+    not in the record's size rule — and the half-a-screen floor stays. D85.
+62. Concurrent writing seats get isolated worktrees, and no seat runs a
+    whole-tree git verb while another holds uncommitted work. D86.
+63. Receipt-and-verify's scope is decided ahead of building it, and a
+    proposal to extend an OpenTelemetry convention is reversed on argument.
+    D87.
+64. The merge surface is the fold, not the transcript: contradiction is an
+    authored edge between derived objects, found lazily, and a refusal
+    forks rather than ends. D88.
 
 ## Working on the code
 
-Go, `go 1.25.4`, Bubble Tea v2 / Lip Gloss v2 (`charm.land/*`). Six packages
+Go, `go 1.25.8` (`go.mod`; this line previously said 1.25.4 and had drifted
+from it), Bubble Tea v2 / Lip Gloss v2 (`charm.land/*`). Six packages
 (`go list ./...`): `memory/` (the record — `id.go` addresses a bit,
 `wire.go` persists a store and a view across a process boundary, D52),
 `tui/` (the surface — `save.go` is the continuous-save invariant, D53(a)),
