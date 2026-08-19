@@ -65,7 +65,8 @@
   the backlog rather than working through it — there is no longer a set of
   decision entries "awaiting a withholding ruling." The historical gaps in
   the public log's numbering are unchanged and remain announced in
-  `docs/PUBLICATION.md`'s "Entries not published" section. D70(g)'s rule —
+  `docs/DECISIONS.md`'s "After D81" note (`docs/PUBLICATION.md`, where this
+  used to live, is deleted per D81(c)). D70(g)'s rule —
   that a withheld entry needs an independent adversarial re-derivation, not
   just a read — still holds, but now applies only to whatever is still
   withheld under the one-file rule, which as of D78 is `docs/PRIVATE.md`
@@ -651,8 +652,15 @@ yet):
   verbs means either publishing a large block of decisions that have never
   cleared the D15 gate, or shipping source whose comments cite a record a
   reader cannot open. Found by `decision-guard` during review of this unit.
-  **No action taken here on purpose, and the mechanism this described has
-  since changed:** at the time, `docs/PUBLICATION.md` held a per-entry
+  **CLOSED by D81, and the closure is worth stating because the obligation
+  was real for weeks:** there is no longer a separate tree to publish into.
+  This repository *is* the public one, `cmd/tldr`'s verbs and the decisions
+  their comments cite are in it, and the entries those comments name that a
+  reader cannot open are accounted for in "After D81" rather than being an
+  undischarged obligation. What follows is the history of the item, kept
+  because the reasoning is how a future reader judges whether the closure is
+  sound. **No action taken at the time on purpose, and the mechanism it
+  described changed twice:** at the time, `docs/PUBLICATION.md` held a per-entry
   ruling and the withholding call (D20(a)) was made entry by entry; D78
   replaced both with the one-file rule (`docs/PRIVATE.md` never leaves,
   everything else publishes), so the live question for these decisions is no
@@ -1137,8 +1145,15 @@ not.
   widths (`tui/ask.go:909-915`) would need re-measuring against the new
   string's length, not copied from the old one. Re-check:
   `grep -n '"nothing was recorded"' tui/ask.go`.
-- **Nine `file:line` citations in synced files resolve correctly only because
-  the code is byte-identical across the two trees.** A tenth, the one this
+- **CLOSED by D81 — this item's failure mode no longer has a mechanism.**
+  There are no synced files and no second copy of the code, so a citation
+  can no longer go wrong by someone editing a copy instead of the source; the
+  re-check command it named (`diff -r` between two trees) has nothing left to
+  compare. The general hazard it identified is not closed and is covered by
+  D76(h) instead — cite by identifier, not by line number, because the number
+  rots whenever anything above it moves. The original item follows.
+  **Nine `file:line` citations in synced files resolved correctly only because
+  the code was byte-identical across the two trees.** A tenth, the one this
   checkpoint fixed (`docs/CLAIMS.md:676`, an `awk 'NR<=N'` line-offset
   settler), answered `## D39` in the private tree and `## D19` in the public
   one on the same command — found because D62's own citation history was the

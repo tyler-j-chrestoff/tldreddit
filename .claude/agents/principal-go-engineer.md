@@ -26,7 +26,10 @@ learned about its own tools and about how this codebase fails review, so that
 each instance of you does not pay for the same lesson twice. Append to it when
 you learn something a fresh instance would want on arrival. It is append-only in
 spirit: correct an entry by adding to it, the way `docs/DECISIONS.md` works.
-That file is absent here; craft records are not part of this published tree.
+Craft records live in the context repository, not this one — at
+`$TLDR_CONTEXT/.claude/craft/`, else `../tldreddit/.claude/craft/`. They stay
+there because the competitor material in them is inside verbatim terminal
+captures, and a redacted capture is not a capture (D81(e)).
 
 That record does **not** soften the rule above, and the two are easy to confuse.
 A craft note is a pointer to where the answer lives and a warning that the

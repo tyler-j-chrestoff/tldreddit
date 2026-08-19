@@ -6606,9 +6606,123 @@ building, per D58(k). (d) is re-derivable from `tui/ask.go`'s comments at any
 time and stops being true the moment someone measures a turn over 16,384.
 
 ---
-## After D80
 
-D80 is the newest entry published here. As of this push it is also the newest
+---
+
+## D81 — The publication pipeline is retired: one repository where the work happens, one that holds what does not publish, and no copying between them
+
+**2026-08-19**
+
+**Status:** mixed. (a) is measured. (b) is the founder's ruling. (c)–(e) are
+the arrangement, executed this checkpoint except where (f) names what is not
+yet done.
+
+**(a) MEASURED, and it is what settles it.** `docs/PUBLICATION.md` was 137
+lines. `docs/PRIVATE.md` is 131. **The procedure was longer than the secret it
+protected**, one entry after D78 cut that same procedure from 1,161 lines for
+exactly this reason. The apparatus regrew inside a single checkpoint because
+the shape underneath it never changed: publication meant *copying*, and two
+prose trees written from two chairs generate defects on their own.
+
+That is not a theory. Every aftermath defect in D79(a) — four files — existed
+because the same sentence lived in two trees. The pre-push gate that same day
+found five more sentences that were true in the private tree and false in the
+public one, plus a private hash inside a file that had drifted for weeks. None
+of those is a mistake anyone made; they are what copying produces.
+
+**(b) The founder's ruling, and it is his.** "Isn't the publication pipeline a
+bit complicated? … Why not just have one repo of code and one repo of private
+context rather than have the code duplicated?" Recorded as his because the CEO
+built the pipeline, then rebuilt it smaller the day before, and still did not
+see that the duplication was the thing generating the work. This is the second
+time in two days the same correction has been needed (D78(b)), which is the
+signal worth keeping: **complexity here regrows unless something outside it
+asks why it exists.**
+
+**(c) The arrangement.** Two repositories, and neither one copies from the
+other:
+
+- **The working repository is the public one.** Code, `docs/`, `CLAUDE.md`,
+  `.claude/agents/`, the hooks, the craft records. Work happens here. There is
+  no staging tree and no publication step: committing is publishing.
+- **The context repository holds only what does not publish** —
+  `docs/PRIVATE.md`, `docs/board.html`, `docs/handoffs/` and
+  `docs/archive/`. No code, no decision log, nothing that a reader of the work
+  needs.
+
+What that deletes outright: the code sync, the `diff -r` parity check, the
+private-hash sweep (every hash a document cites now resolves in the repository
+that document lives in), the whole-file drift sweep, the second `CLAUDE.md`
+maintained from a different chair, and the entire class of defect where a
+sentence is true in one tree and false in the other. `docs/PUBLICATION.md` is
+deleted rather than shortened; what survives of it is a paragraph in
+`CLAUDE.md`.
+
+**(d) What this costs, named rather than discovered later.**
+
+- **There is no pre-publication gate any more.** The gate that ran on
+  2026-08-18 caught real defects before they were public. Under this
+  arrangement the review moves earlier — before the commit rather than before
+  the push — and anything that gets through is corrected by a later commit,
+  which is already this record's ruling for its own history (D79(e)). The
+  trade is deliberate: a curated tree that is reviewed once at push time was
+  producing the defects it was reviewing for.
+- **Candour costs more at write time.** A decision entry is public the moment
+  it is committed, so business position, competitor reads and a third party's
+  material go into `docs/PRIVATE.md` as the entry is written. That is D78(c)'s
+  split-at-write-time rule with the safety net removed.
+- **The first three weeks of history stay private.** The context repository
+  keeps 120 commits of real development; the public log has ten curated
+  publication commits before this one. That cannot be fixed without rewriting
+  history containing business figures, so it stays, and this entry is where a
+  future reader finds out why the public history looks like it starts in the
+  middle.
+
+**(e) Placement rules, so the next session does not have to re-derive them.**
+Two things stay in the context repository, and neither is habit:
+
+- **`docs/handoffs/` stays, permanently.** The twenty-three existing files
+  carry competitor reads and burn figures, and handoffs are operational notes
+  rather than part of the work. `.claude/session-start.sh` now looks for them
+  at `$TLDR_CONTEXT`, else `../tldreddit`, and says which path it looked in
+  when it finds nothing — a clone of the working repository alone gets an
+  accurate message rather than "the convention broke."
+- **`.claude/craft/` stays, and the reason is one this project has not had
+  before.** The competitor material in `tui-design-engineer.md` is not
+  commentary that can be moved to `docs/PRIVATE.md`; it is inside **verbatim
+  terminal captures**, and a redacted capture is no longer a capture. The
+  record's value is that those frames are what the program actually drew. So
+  the choice is publish the read, or keep the file — and the file is kept.
+  The cost stands and is accepted: roughly twenty-three citations in the
+  public tree point at `.claude/craft/*` and resolve to nothing there.
+  **Reversal is mechanical rather than a judgement: when a seat's record no
+  longer contains a capture naming a competitor, that record publishes.** The
+  seat definitions now name the path so a seat can still find its record
+  across the two repositories.
+
+**(f) Not yet done at the time of writing, and it is mechanical.** The two
+directories are still named for the old arrangement — the working repository
+sits at `/home/tyler/code/tldreddit-public` and the context repository at
+`/home/tyler/code/tldreddit`. Renaming them while a session is running inside
+one of them destroys its own working directory, so it is the first action of
+the next session, not this one. Until it happens, the paths mean the opposite
+of what they say, which is the single most dangerous state this arrangement
+can be in and is why it is written here rather than only in a handoff.
+
+---
+
+**What would change this.** (c) reverses if committing-is-publishing turns out
+to suppress what gets written down — the signal would be decision entries
+getting shorter or more careful about naming failures, which is the one thing
+this record cannot afford to lose. That is worth watching for deliberately at
+the next three checkpoints, because it would arrive as an absence and nothing
+announces an absence.
+
+---
+
+## After D81
+
+D81 is the newest entry published here. As of this push it is also the newest
 entry in the private record, but that is a fact about this moment and not a
 standing one: the private record gains entries between pushes, so by the time
 you read this the log has probably continued somewhere you cannot see.
@@ -6616,7 +6730,7 @@ you read this the log has probably continued somewhere you cannot see.
 This paragraph exists because the two kinds of gap are not equally visible.
 A missing number in the middle of a numbered list announces itself — you can
 see that D8 and D70 are not there. A log that simply stops does not. Without
-this note, a record ending at D80 would read as though D80 were the last
+this note, a record ending at D81 would read as though D81 were the last
 decision taken, rather than the last one published, and nothing else in this
 file would tell you otherwise.
 
@@ -6650,7 +6764,10 @@ survey the founder's own machine; D8, D9, D10, D15, D25, D56 and D62 carry
 the business position or a competitor read; and D65 and D70 are itemized
 indexes of what was cut from which entry, which is an index of private
 material and is held on the same ground as the archived manifest
-`docs/PUBLICATION.md` describes.
+`docs/PUBLICATION.md` describes. **`docs/PUBLICATION.md` itself is deleted,
+per D81(c)** — the file this note has been citing throughout no longer
+exists in this repository; what survives of it is this note and the
+paragraph in `CLAUDE.md`'s opening blockquote.
 
 **The other twelve — D16, D17, D20, D21, D22, D23, D29, D45, D46, D47, D48
 and D64 — hold nothing secret.** Eleven of them — all but D64 — were

@@ -59,7 +59,10 @@ learned about the Charm v2 stack and about how this surface fails, so that each
 instance of you does not pay for the same lesson twice. Append to it when you
 learn something a fresh instance would want on arrival; correct an entry by
 adding to it rather than editing it away.
-That file is absent here; craft records are not part of this published tree.
+Craft records live in the context repository, not this one — at
+`$TLDR_CONTEXT/.claude/craft/`, else `../tldreddit/.claude/craft/`. They stay
+there because the competitor material in them is inside verbatim terminal
+captures, and a redacted capture is not a capture (D81(e)).
 
 It is not a substitute for looking. Every note carries **the version it was true
 of and the command that re-checks it**, and a note with no executable check is

@@ -30,7 +30,22 @@ if [ ! -f CLAUDE.md ]; then
 	exit 0
 fi
 
-handoff=$(find docs/handoffs -name '*.md' -type f 2>/dev/null | sort | tail -1)
+# Handoffs do not live in this repository. D81 split the trees by content: the
+# work publishes from here, and the handoffs — which name competitor reads and
+# burn figures — stay in the context repository beside docs/PRIVATE.md. So this
+# looks there first and falls back to a local docs/handoffs/ if one ever exists,
+# which keeps a clone of this repo alone from silently reporting no handoffs as
+# though the convention had broken. Override the location with TLDR_CONTEXT.
+context=${TLDR_CONTEXT:-$root/../tldreddit}
+if [ -d "$context/docs/handoffs" ]; then
+	handoffs="$context/docs/handoffs"
+elif [ -d docs/handoffs ]; then
+	handoffs=docs/handoffs
+else
+	handoffs=""
+fi
+
+handoff=$([ -n "$handoffs" ] && find "$handoffs" -name '*.md' -type f 2>/dev/null | sort | tail -1)
 
 # D28's invariant is that reading the newest file is *sufficient*, and this line
 # is the only thing that decides which file that is. It sorts by name, so the
@@ -42,7 +57,7 @@ handoff=$(find docs/handoffs -name '*.md' -type f 2>/dev/null | sort | tail -1)
 # moves for reasons that are not authorship — so it is reported beside the handoff
 # rather than swallowed or thrown, and the reader decides.
 handoff_warning=""
-newest_mtime=$(find docs/handoffs -name '*.md' -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-)
+newest_mtime=$([ -n "$handoffs" ] && find "$handoffs" -name '*.md' -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-)
 if [ -n "$handoff" ] && [ -n "$newest_mtime" ] && [ "$handoff" != "$newest_mtime" ]; then
 	handoff_warning="WARNING: the newest handoff by filename ($handoff) is not the
 newest by modification time ($newest_mtime). One of them is not the last ending.
@@ -52,10 +67,12 @@ Filename order is the convention D28 relies on; check both before trusting eithe
 fi
 
 if [ -z "$handoff" ]; then
-	body="NO HANDOFF FOUND under docs/handoffs/.
+	body="NO HANDOFF FOUND. Looked in ${handoffs:-<no handoffs directory found>};
+the context repository is expected at \$TLDR_CONTEXT or ../tldreddit (D81).
 
-Either this is the first session, or the handoff convention broke. Do not assume
-continuity — say so to Tyler rather than guessing where work stopped."
+Either this is the first session, the context repository is not checked out
+beside this one, or the handoff convention broke. Do not assume continuity —
+say so to Tyler rather than guessing where work stopped."
 else
 	body="$handoff_warning=== MOST RECENT HANDOFF: $handoff ===
 

@@ -3,24 +3,21 @@
 A forum-shaped memory for working with many agents at once, built so a person can
 actually see it thinking.
 
-> **Two trees, named explicitly on every command.** This is the public tree;
-> `/home/tyler/code/tldreddit` is a **separate, private repository with its
-> own history and no shared objects**, remote `tldreddit-private.git`
-> against this one's `tldreddit.git`. One letter apart — every command that
-> touches either tree names it explicitly, and code is never copied private
-> → public by hand: the filenames match, and the wrong direction would strip
-> private material out of the operative files.
+> **This is the working repository; committing here is publishing.** A second,
+> private repository holds only what does not publish: `docs/PRIVATE.md`,
+> `docs/PRIVATE-DECISIONS.md` (the 24 entries missing from the log here),
+> `docs/board.html`, `docs/handoffs/`, `.claude/craft/` and the archived
+> manifest — nothing is ever copied between the two, and anything that would be private material is written there
+> directly rather than removed from here later. This history is append-only
+> from its root: a mistake already pushed is fixed by a new commit, never an
+> amend, while an unpushed local commit is fixed by amending it.
 >
-> **This tree is append-only from its root.** A mistake already published
-> here is fixed by a new commit, never an amend or a force-push — including
-> a leak, because rewriting this history to remove a string costs more than
-> the string does.
->
-> **What is withheld from this tree is one file, `docs/PRIVATE.md`, and
-> nothing else** — which is why it is absent here, along with the handful of
-> other paths named, with their reasons, in `docs/PUBLICATION.md`. That file
-> is the procedure that produces this tree from the private one, published
-> here too. Full reasoning: D15, D23, D41, D78, D79 in `docs/DECISIONS.md`.
+> **The two directory names still mean the opposite of what they say** — this
+> working repository sits at `/home/tyler/code/tldreddit-public`, the private
+> one at `/home/tyler/code/tldreddit` — and the rename is the first action of
+> the *next* session, not this one (D81(f)); this warning comes out the
+> moment that happens. Full reasoning: D15, D23, D78, D79, D81 in
+> `docs/DECISIONS.md`.
 
 ## What we are building, in one paragraph
 
@@ -114,19 +111,23 @@ because a limit got hit, not overspending. The figures are in
 
 ## What is private
 
-This is the public tree. One file never reaches it: `docs/PRIVATE.md`, kept
-only in the private tree at `/home/tyler/code/tldreddit`, holding the
-business position, burn, the competitor reads and the shareholder's pages.
-Four more paths are absent here for the same reason applied rather than as
-exceptions to it — `docs/board.html`, `docs/handoffs/`, `.claude/craft/` and
-the archived manifest — each named with its reason in `docs/PUBLICATION.md`,
-which is itself published here.
+This is the working repository, and everything committed here publishes —
+there is no second copy of it and no gate before a push, because there is no
+push. What does not publish lives in a separate context repository instead,
+never in this one: one file, `docs/PRIVATE.md`, holding the business
+position, burn, the competitor reads and the shareholder's pages, plus three
+more paths held for the same reason applied rather than as exceptions to
+it — `docs/board.html`, `docs/handoffs/` and the archived manifest. Nothing
+here is copied there or back; anything that belongs in one of those four is
+written there directly, at the moment it is written (D81).
 
-Everything else publishes. That is the whole rule (D78). It replaced a
-1,161-line manifest of per-entry rulings, a withheld backlog, and four
-decision entries that were themselves withheld for describing the mechanism
-— an apparatus that had grown large enough to generate the secrets it
-existed to protect.
+That is the whole rule (D78, D81). It replaced a 1,161-line manifest of
+per-entry rulings, a withheld backlog, and four decision entries that were
+themselves withheld for describing the mechanism — an apparatus that had
+grown large enough to generate the secrets it existed to protect — and it
+replaced the two-tree publication pipeline that regrew in its place, because
+copying between two prose trees written from two chairs generates defects on
+its own (D81(a)).
 
 ## The discontinuity problem
 
@@ -201,17 +202,18 @@ order of authority, highest first:
    `git status`, and `git reflog` for commits orphaned by an amend. This is
    what happened, as opposed to what someone wrote down about it. Commit
    messages here are long on purpose, so `git log` is usually the fastest
-   true account of a session. The private tree at `/home/tyler/code/tldreddit`
-   has its own separate history that produced this one — check both if you
-   can see both; this tree alone still tells you what landed here and when.
+   true account of a session. The context repository at
+   `/home/tyler/code/tldreddit` has its own separate history — check both if
+   you can see both; this repository alone still tells you what landed here
+   and when, and since D81 nothing is copied from one into the other, so
+   neither history produces the other's.
 2. **`docs/DECISIONS.md`.** What was decided and why. Append-only, so a
    contradiction between two entries is real information: the later one wins,
    and the earlier one tells you what changed.
-3. **The newest file in `docs/handoffs/`, in the private tree.** A summary
-   written at a moment that may not have been the last moment. That
-   directory does not exist here — `docs/PUBLICATION.md` names why — so
-   this step is unavailable from inside this tree; it is listed for anyone
-   reading this file who also has the private one open.
+3. **The newest file in `docs/handoffs/`, in the context repository.** A
+   summary written at a moment that may not have been the last moment. That
+   directory does not exist here (D81(e)) — it is listed for anyone reading
+   this file who also has the context repository open.
 4. **This file, read from disk.** Current state, but prose, and prose is what
    goes stale.
 5. **This file as the harness hands it to you — lowest authority of all, and
@@ -275,17 +277,17 @@ granted, the record still is not, on the same evidence standard as
 than a per-checkpoint sweep (D62(h), narrowing D40).**
 `tui-design-engineer.md` carries verbatim terminal captures naming a
 competitor, which is `docs/PRIVATE.md` material by D78(c)'s own list, and the
-records stay together rather than being split file by file — written down in
-`docs/PUBLICATION.md` beside the other paths that do not reach this tree.
-`.claude/craft/` is absent here. This tree still carries citations
-pointing at `.claude/craft/*` that resolve to nothing here — the count
-moves every time either tree gains prose, so read it from
+records stay together rather than being split file by file — the move
+into this repository waits on that split (D81(e)). `.claude/craft/` is
+absent here. This repository still carries citations pointing at
+`.claude/craft/*` that resolve to nothing here — the count moves every
+time either repository gains prose, so read it from
 `grep -rho '\.claude/craft' --include='*.md' . | wc -l` rather than from a
 number written here — accepted as a comprehension-class cost rather than
 fixed (`docs/DEBT.md`). The same cost applies to decision references:
 roughly twenty-four of this file's `Dnn` citations point at entries a
-public reader cannot open (`docs/DECISIONS.md`'s "After D79" note names all
-twenty-four), including three of the five in the blockquote's own "Full
+public reader cannot open (`docs/DECISIONS.md`'s "After D81" note names all
+twenty-four), including two of the five in the blockquote's own "Full
 reasoning" list at the top of this file.
 
 **Research is a scheduled beat, not a felt need (D58(k)), watching a named
@@ -353,15 +355,15 @@ there. One line per decision below, title only, verified against that file's
 own headings on 2026-08-16 — D61's line carried backticks around `Prev` that
 the actual heading does not have, and is fixed above; every other entry
 through D66, including D47's line fixed at the 2026-08-14 check, matched.
-D78 and D79 are new this pass and match their headings here exactly
-(`grep -n '^## D7[89]' docs/DECISIONS.md`). Three entries, D61, D72 and
-D76, carry a shorter title than the one in the private record: each decided
-two things and only one of the two is published, so the title drops the
-conjunct that named the other. The numbering on the left is this list's own
-and is sequential; the `Dnn` on the right is the entry's real name, and the
-gaps in it are the entries not published — twenty-four of them as of D79,
-named and reasoned about in `docs/DECISIONS.md`'s own "After D79" note at
-the end of that file:
+D78 through D81 are new since that check and match their headings here
+exactly (`grep -n '^## D8[01]' docs/DECISIONS.md`). Three entries, D61, D72
+and D76, carry a shorter title than the one in the private record: each
+decided two things and only one of the two is published, so the title drops
+the conjunct that named the other. The numbering on the left is this list's
+own and is sequential; the `Dnn` on the right is the entry's real name, and
+the gaps in it are the entries not published — twenty-four of them as of
+D79, unchanged by D80 and D81, named and reasoned about in
+`docs/DECISIONS.md`'s own "After D81" note at the end of that file:
 
 1. The record does not forget; the view does. D1.
 2. Self-modification is composition from primitives. D2.
@@ -464,6 +466,9 @@ the end of that file:
 56. A prohibition on a technique was hiding a property nobody had stated,
     and the property is the community's judgment rather than a person's.
     D80.
+57. The publication pipeline is retired: one repository where the work
+    happens, one that holds what does not publish, and no copying between
+    them. D81.
 
 ## Working on the code
 
